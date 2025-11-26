@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Home / X</title>
+  <style>
+    :root {
+      --bg-color: #000000;
+      --border-color: #2f3336;
+      --text-primary: #e7e9ea;
+      --text-secondary: #71767b;
+      --accent: #1d9bf0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      overflow-y: scroll;
+    }
+
+    .layout {
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .sidebar-left {
+      width: 275px;
+      padding: 0 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      border-right: 1px solid var(--border-color);
+    }
+
+    .main-feed {
+      width: 600px;
+      border-right: 1px solid var(--border-color);
+    }
+
+    .sidebar-right {
+      width: 350px;
+      padding-left: 30px;
+      display: none;
+      /* Hidden on smaller screens, but we'll show it for desktop feel */
+    }
+
+    @media (min-width: 1000px) {
+      .sidebar-right {
+        display: block;
+      }
+    }
+
+    /* Header */
+    .feed-header {
+      height: 53px;
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      font-weight: 700;
+      font-size: 20px;
+      z-index: 10;
+    }
+
+    /* Tweet */
+    .tweet {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      gap: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .tweet:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #333;
+    }
+
+    .tweet-content {
+      flex: 1;
+    }
+
+    .tweet-header {
+      display: flex;
+      gap: 4px;
+      font-size: 15px;
+      margin-bottom: 2px;
+    }
+
+    .name {
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .handle,
+    .time {
+      color: var(--text-secondary);
+    }
+
+    .tweet-text {
+      font-size: 15px;
+      line-height: 20px;
+      color: var(--text-primary);
+    }
+
+    .tweet-actions {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 12px;
+      max-width: 425px;
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+
+    /* Nav Items */
+    .nav-item {
+      padding: 12px;
+      margin: 4px 0;
+      font-size: 20px;
+      font-weight: 400;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .logo {
+      padding: 12px;
+      font-size: 30px;
+      color: var(--text-primary);
+    }
+
+    /* Right Sidebar Stuff */
+    .search-box {
+      background: #202327;
+      border-radius: 9999px;
+      height: 42px;
+      margin-top: 5px;
+      margin-bottom: 12px;
+    }
+
+    .trending-box {
+      background: #16181c;
+      border-radius: 16px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+
+    .trending-item {
+      padding: 12px 0;
+    }
+
+    .trending-meta {
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+
+    .trending-title {
+      font-weight: 700;
+      margin: 2px 0;
+    }
+
+    /* Mock Control */
+    .mock-control {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: #1d9bf0;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 9999px;
+      border: none;
+      font-weight: bold;
+      cursor: pointer;
+      z-index: 100;
+      box-shadow: 0 4px 10px rgba(29, 155, 240, 0.3);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="layout">
+    <!-- Left Sidebar -->
+    <div class="sidebar-left">
+      <div class="logo">X</div>
+      <div class="nav-item">Home</div>
+      <div class="nav-item">Explore</div>
+      <div class="nav-item">Notifications</div>
+      <div class="nav-item">Messages</div>
+      <div class="nav-item">Grok</div>
+      <div class="nav-item">Profile</div>
+    </div>
+
+    <!-- Main Feed -->
+    <div class="main-feed">
+      <div class="feed-header">
+        <span>For you</span>
+      </div>
+      <div id="tweets">
+        <!-- Initial Tweets -->
+        <div class="tweet">
+          <div class="avatar" style="background: #1d9bf0"></div>
+          <div class="tweet-content">
+            <div class="tweet-header">
+              <span class="name">Elon Musk</span>
+              <span class="handle">@elonmusk</span>
+              <span class="time">· 2h</span>
+            </div>
+            <div class="tweet-text">
+              Amendoa is looking fire. 🔥
+            </div>
+            <div class="tweet-actions">
+              <span>💬 1.2K</span>
+              <span>❤️ 42K</span>
+              <span>📊 1M</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tweet">
+          <div class="avatar" style="background: #E4D0A4"></div>
+          <div class="tweet-content">
+            <div class="tweet-header">
+              <span class="name">Naval</span>
+              <span class="handle">@naval</span>
+              <span class="time">· 4h</span>
+            </div>
+            <div class="tweet-text">
+              The best tools are the ones you don't notice. They become extensions of your mind.
+            </div>
+            <div class="tweet-actions">
+              <span>💬 500</span>
+              <span>❤️ 12K</span>
+              <span>📊 500K</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Sidebar -->
+    <div class="sidebar-right">
+      <div class="search-box"></div>
+      <div class="trending-box">
+        <h3 style="margin:0 0 10px 0; font-size: 20px;">What's happening</h3>
+        <div class="trending-item">
+          <div class="trending-meta">Technology · Trending</div>
+          <div class="trending-title">Amendoa</div>
+          <div class="trending-meta">50.2K posts</div>
+        </div>
+        <div class="trending-item">
+          <div class="trending-meta">Business · Trending</div>
+          <div class="trending-title">Glassmorphism</div>
+          <div class="trending-meta">12.5K posts</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div
+    style="position: fixed; bottom: 80px; left: 20px; display: flex; flex-direction: column; gap: 10px; z-index: 100;">
+    <button class="mock-control" style="position: static;" onclick="loadNewTweets()">Simulate New Tweets (Auth)</button>
+    <button class="mock-control" style="position: static; background: #333;" onclick="navTo('/home')">Nav: Home</button>
+    <button class="mock-control" style="position: static; background: #333;" onclick="navTo('/elonmusk')">Nav:
+      Profile</button>
+    <button class="mock-control" style="position: static; background: #333;" onclick="navTo('/compose/tweet')">Nav:
+      Composer</button>
+  </div>
+
+  <script>
+    function navTo(path) {
+      history.pushState({}, "", path);
+      // Manually trigger popstate for our detector if it listens to it, 
+      // but our detector uses MutationObserver on href which might not trigger on pushState immediately 
+      // unless the DOM changes or we dispatch an event.
+      // Actually ContextDetector uses MutationObserver on document, so we need to change DOM or rely on the loop.
+      // Let's also dispatch a popstate event just in case.
+      window.dispatchEvent(new Event('popstate'));
+      // And let's force a DOM change to trigger the observer
+      document.body.setAttribute('data-path', path);
+    }
+
+    function loadNewTweets() {
+      console.log("Simulating API Call...");
+
+      // 1. Inject visual tweet
+      const tweetsContainer = document.getElementById('tweets');
+      const newTweet = document.createElement('div');
+      newTweet.className = 'tweet';
+      newTweet.innerHTML = `
+        <div class="avatar" style="background: #D97706"></div>
+        <div class="tweet-content">
+          <div class="tweet-header">
+            <span class="name">Paul Graham</span>
+            <span class="handle">@paulg</span>
+            <span class="time">· 1m</span>
+          </div>
+          <div class="tweet-text">
+            High velocity startup ideas often look like toys at first.
+          </div>
+          <div class="tweet-actions">
+            <span>💬 100</span>
+            <span>❤️ 500</span>
+            <span>📊 10K</span>
+          </div>
+        </div>
+      `;
+      tweetsContainer.insertBefore(newTweet, tweetsContainer.children[0]);
+
+      // 2. Simulate Network Interception WITH Auth Headers
+      // We can't easily simulate the XHR interception from here because the injector runs in the main world 
+      // and monkey patches XHR. So if we make a REAL XHR here, it should be intercepted.
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("GET", "https://api.twitter.com/1.1/guest/activate.json"); // Dummy URL
+      xhr.setRequestHeader("Authorization", "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA");
+      xhr.setRequestHeader("x-csrf-token", "1234567890abcdef");
+      xhr.send();
+
+      // Also send the data payload manually as before for the Processor
+      window.postMessage({
+        type: 'AMENDOA_DATA_INTERCEPT',
+        payload: {
+          url: 'https://api.twitter.com/HomeTimeline',
+          data: {
+            home: {
+              home_timeline_urt: {
+                instructions: [
+                  {
+                    entries: [
+                      {
+                        content: {
+                          itemContent: {
+                            tweet_results: {
+                              result: {
+                                __typename: "Tweet",
+                                rest_id: "new_" + Date.now(),
+                                legacy: {
+                                  created_at: new Date().toISOString(),
+                                  favorite_count: 500,
+                                  retweet_count: 100,
+                                  reply_count: 50,
+                                  full_text: "High velocity startup ideas often look like toys at first."
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }, '*');
+    }
+  </script>
+
+  <!-- Inject Content Script for Dev -->
+  <script type="module" src="/src/content/index.tsx"></script>
+</body>
+
+</html>

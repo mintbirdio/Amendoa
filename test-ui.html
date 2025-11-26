@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Amendoa UI Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #000;
+            color: #fff;
+            font-family: system-ui;
+        }
+
+        .info {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="info">
+        <h1>Amendoa UI Test Page</h1>
+        <p>This page tests if the Amendoa UI components render correctly.</p>
+        <p><strong>Expected:</strong> You should see the Onboarding modal or Sidebar appear.</p>
+        <p><strong>Check:</strong> Open DevTools (F12) and look for the Shadow DOM in the Elements tab.</p>
+    </div>
+
+    <div id="amendoa-root"></div>
+
+    <script type="module">
+        import { createRoot } from 'https://esm.sh/react-dom@18/client';
+        import React from 'https://esm.sh/react@18';
+
+        // Simple test to see if React renders
+        const TestComponent = () => {
+            return React.createElement('div', {
+                style: {
+                    position: 'fixed',
+                    top: '20px',
+                    right: '20px',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    padding: '20px',
+                    borderRadius: '12px',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                    zIndex: 10000
+                }
+            }, 'Amendoa Test - If you see this, React is working!');
+        };
+
+        const root = createRoot(document.getElementById('amendoa-root'));
+        root.render(React.createElement(TestComponent));
+    </script>
+</body>
+
+</html>
