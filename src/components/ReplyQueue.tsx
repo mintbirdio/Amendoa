@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Clock, MessageCircle, Heart, UserPlus, Users, Search, Zap } from 'lucide-react';
+import { Clock, MessageCircle, Heart, UserPlus, Users, Search, Zap, RefreshCw, Trash2 } from 'lucide-react';
 import { db, type TweetCache, type ScoreBadge, inferTier } from '../db';
 import { getBadgeIcon, getTimingLabel, getPositionHint } from '../services/scoreEngine';
 import { badgeInjector } from '../services/badgeInjector';
@@ -19,17 +19,35 @@ type QueueTab = 'targets' | 'discovery';
 function useTargetOpportunities(limit: number = 10): TweetCache[] {
     return useLiveQuery(
         async () => {
-            const oneHourAgo = Date.now() - 60 * 60 * 1000;
+            const now = Date.now();
+            // 2 hours for targets - they're higher priority so slightly longer window
+            const twoHoursAgo = now - 2 * 60 * 60 * 1000;
 
-            // Get tweets from targets in last hour, sorted by score
+            // Get tweets from targets in last 2 hours, sorted by score
             const tweets = await db.tweetCache
                 .where('opportunityScore')
                 .above(20) // Only show "meh" and above
-                .and(t => t.postedAt > oneHourAgo && !t.didReply && t.isFromTarget === true)
-                .reverse()
-                .sortBy('opportunityScore');
+                .and(t => t.postedAt > twoHoursAgo && !t.didReply && t.isFromTarget === true)
+                .toArray();
 
-            return tweets.slice(0, limit);
+            // Apply time decay and sort
+            const withDecay = tweets.map(t => {
+                const ageMinutes = (now - t.postedAt) / 1000 / 60;
+                let timeFactor = 1.0;
+                if (ageMinutes > 60) timeFactor = 0.6;
+                else if (ageMinutes > 30) timeFactor = 0.8;
+                else if (ageMinutes > 15) timeFactor = 0.9;
+
+                return {
+                    ...t,
+                    effectiveScore: Math.round(t.opportunityScore * timeFactor)
+                };
+            });
+
+            return withDecay
+                .filter(t => t.effectiveScore >= 15)
+                .sort((a, b) => b.effectiveScore - a.effectiveScore)
+                .slice(0, limit);
         },
         [limit],
         []
@@ -39,13 +57,15 @@ function useTargetOpportunities(limit: number = 10): TweetCache[] {
 function useDiscoveryOpportunities(limit: number = 10): TweetCache[] {
     return useLiveQuery(
         async () => {
-            const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+            const now = Date.now();
+            // Shortened from 24h to 4h - stale tweets aren't valuable
+            const fourHoursAgo = now - 4 * 60 * 60 * 1000;
 
             // Get all recent tweets, then filter to non-targets with good scores
             // We filter in JS because Dexie boolean indexing can be tricky
             const allRecent = await db.tweetCache
                 .where('postedAt')
-                .above(twentyFourHoursAgo)
+                .above(fourHoursAgo)
                 .toArray();
 
             const discoveryTweets = allRecent
@@ -54,13 +74,22 @@ function useDiscoveryOpportunities(limit: number = 10): TweetCache[] {
                     !t.didReply &&
                     t.opportunityScore >= 20
                 )
-                .sort((a, b) => b.opportunityScore - a.opportunityScore);
+                // Re-calculate effective score based on current age for sorting
+                .map(t => {
+                    const ageMinutes = (now - t.postedAt) / 1000 / 60;
+                    // Apply time decay: score drops as tweet ages
+                    let timeFactor = 1.0;
+                    if (ageMinutes > 120) timeFactor = 0.5;
+                    else if (ageMinutes > 60) timeFactor = 0.7;
+                    else if (ageMinutes > 30) timeFactor = 0.85;
 
-            // Debug log
-            const fromTargetCount = allRecent.filter(t => t.isFromTarget === true).length;
-            const notFromTargetCount = allRecent.filter(t => t.isFromTarget === false).length;
-            const undefinedCount = allRecent.filter(t => t.isFromTarget === undefined).length;
-            console.log(`[Amendoa v2] Discovery query: ${allRecent.length} recent (${fromTargetCount} target, ${notFromTargetCount} non-target, ${undefinedCount} undefined), ${discoveryTweets.length} candidates`);
+                    return {
+                        ...t,
+                        effectiveScore: Math.round(t.opportunityScore * timeFactor)
+                    };
+                })
+                .filter(t => t.effectiveScore >= 15) // Filter out decayed low scores
+                .sort((a, b) => b.effectiveScore - a.effectiveScore);
 
             return discoveryTweets.slice(0, limit);
         },
@@ -238,9 +267,31 @@ const TabButton: React.FC<TabButtonProps> = ({ active, onClick, icon, label, cou
 
 export const ReplyQueue: React.FC = () => {
     const [activeTab, setActiveTab] = useState<QueueTab>('targets');
+    const [isClearing, setIsClearing] = useState(false);
 
     const targetOpportunities = useTargetOpportunities(10);
     const discoveryOpportunities = useDiscoveryOpportunities(10);
+
+    // Clear old/stale tweets from cache
+    const handleClearStale = useCallback(async () => {
+        setIsClearing(true);
+        try {
+            const now = Date.now();
+            // Remove tweets older than 4 hours that we haven't replied to
+            const fourHoursAgo = now - 4 * 60 * 60 * 1000;
+
+            const staleCount = await db.tweetCache
+                .where('postedAt')
+                .below(fourHoursAgo)
+                .and(t => !t.didReply)
+                .delete();
+
+            console.log(`[Amendoa v2] Cleared ${staleCount} stale tweets from cache`);
+        } catch (err) {
+            console.error('[Amendoa v2] Failed to clear stale tweets:', err);
+        }
+        setIsClearing(false);
+    }, []);
 
     const handleAddToTargets = async (tweet: TweetCache) => {
         try {
@@ -270,22 +321,36 @@ export const ReplyQueue: React.FC = () => {
 
     return (
         <div className="p-3">
-            {/* Tab Switcher */}
-            <div className="flex gap-1 mb-3 p-1 bg-white/5 rounded-lg">
-                <TabButton
-                    active={activeTab === 'targets'}
-                    onClick={() => setActiveTab('targets')}
-                    icon={<Zap size={12} />}
-                    label="Targets"
-                    count={targetOpportunities.length}
-                />
-                <TabButton
-                    active={activeTab === 'discovery'}
-                    onClick={() => setActiveTab('discovery')}
-                    icon={<Search size={12} />}
-                    label="Discovery"
-                    count={discoveryOpportunities.length}
-                />
+            {/* Tab Switcher with Clear Button */}
+            <div className="flex items-center gap-2 mb-3">
+                <div className="flex-1 flex gap-1 p-1 bg-white/5 rounded-lg">
+                    <TabButton
+                        active={activeTab === 'targets'}
+                        onClick={() => setActiveTab('targets')}
+                        icon={<Zap size={12} />}
+                        label="Targets"
+                        count={targetOpportunities.length}
+                    />
+                    <TabButton
+                        active={activeTab === 'discovery'}
+                        onClick={() => setActiveTab('discovery')}
+                        icon={<Search size={12} />}
+                        label="Discovery"
+                        count={discoveryOpportunities.length}
+                    />
+                </div>
+                <button
+                    onClick={handleClearStale}
+                    disabled={isClearing}
+                    className="p-2 text-gray-500 hover:text-gray-300 hover:bg-white/5 rounded-lg transition-colors disabled:opacity-50"
+                    title="Clear stale tweets (>4h old)"
+                >
+                    {isClearing ? (
+                        <RefreshCw size={14} className="animate-spin" />
+                    ) : (
+                        <Trash2 size={14} />
+                    )}
+                </button>
             </div>
 
             {/* Opportunity List */}

@@ -236,32 +236,52 @@ export async function processInterceptedData(url: string, data: any) {
 
         const scoreResult = await calculateOpportunityScore(tweetData, now);
 
-        // Store in tweet cache with isFromTarget flag
-        const cacheEntry: TweetCache = {
-            tweetId: extracted.tweetId,
-            authorHandle: normalizedHandle,
-            content: extracted.content,
-            postedAt: extracted.postedAt,
-            firstSeenAt: now,
-            hasMedia: extracted.hasMedia,
-            isThread: extracted.isThread,
-            isReply: extracted.isReply,
-            likes: extracted.likes,
-            retweets: extracted.retweets,
-            replies: extracted.replies,
-            views: extracted.views,
-            opportunityScore: scoreResult.score,
-            scoreBadge: scoreResult.badge,
-            didReply: false,
-            replyTimestamp: null,
-            gotReplyBack: false,
-            // New Discovery fields
-            isFromTarget: isTarget,
-            authorFollowerCount: extracted.authorFollowers,
-            authorIsPremium: extracted.authorIsPremium
-        };
+        // Check if tweet already exists in cache
+        const existingTweet = await db.tweetCache.get(extracted.tweetId);
 
-        await db.tweetCache.put(cacheEntry);
+        if (existingTweet) {
+            // UPDATE existing tweet - preserve user interaction state, update metrics
+            await db.tweetCache.update(extracted.tweetId, {
+                // Update engagement metrics (these change over time)
+                likes: extracted.likes,
+                retweets: extracted.retweets,
+                replies: extracted.replies,
+                views: extracted.views,
+                // Re-calculate score with fresh data
+                opportunityScore: scoreResult.score,
+                scoreBadge: scoreResult.badge,
+                // Update content if it changed (edits)
+                content: extracted.content,
+                // Keep: firstSeenAt, didReply, replyTimestamp, gotReplyBack
+            });
+        } else {
+            // INSERT new tweet
+            const cacheEntry: TweetCache = {
+                tweetId: extracted.tweetId,
+                authorHandle: normalizedHandle,
+                content: extracted.content,
+                postedAt: extracted.postedAt,
+                firstSeenAt: now,
+                hasMedia: extracted.hasMedia,
+                isThread: extracted.isThread,
+                isReply: extracted.isReply,
+                likes: extracted.likes,
+                retweets: extracted.retweets,
+                replies: extracted.replies,
+                views: extracted.views,
+                opportunityScore: scoreResult.score,
+                scoreBadge: scoreResult.badge,
+                didReply: false,
+                replyTimestamp: null,
+                gotReplyBack: false,
+                // Discovery fields
+                isFromTarget: isTarget,
+                authorFollowerCount: extracted.authorFollowers,
+                authorIsPremium: extracted.authorIsPremium
+            };
+
+            await db.tweetCache.add(cacheEntry);
+        }
 
         // Emit event for badge injection (targets only for now)
         if (isTarget) {

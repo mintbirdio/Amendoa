@@ -55,6 +55,93 @@
         return hasData;
     };
 
+    // Helper to check if response is notifications data (currently using URL matching instead)
+    const _isNotificationsData = (data: any): boolean => {
+        if (!data || typeof data !== 'object') return false;
+        return !!(
+            // Notifications endpoint
+            (data.data && data.data.viewer && data.data.viewer.user_results &&
+             data.data.viewer.user_results.result && data.data.viewer.user_results.result.timeline) ||
+            // Alternative notifications structure
+            (data.data && data.data.notifications) ||
+            // globalObjects with notifications
+            (data.globalObjects && data.globalObjects.notifications)
+        );
+    };
+    void _isNotificationsData; // Suppress unused warning - kept for potential future use
+
+    // Extract reply notifications from notifications data
+    const extractReplyNotifications = (data: any): Array<{
+        fromHandle: string;
+        content: string;
+        threadUrl: string;
+        inReplyTo?: string;
+    }> => {
+        const results: Array<{
+            fromHandle: string;
+            content: string;
+            threadUrl: string;
+            inReplyTo?: string;
+        }> = [];
+
+        try {
+            // Navigate to notifications timeline
+            let instructions: any[] = [];
+
+            if (data.data?.viewer?.user_results?.result?.timeline?.timeline?.instructions) {
+                instructions = data.data.viewer.user_results.result.timeline.timeline.instructions;
+            }
+
+            for (const instruction of instructions) {
+                const entries = instruction.entries || [];
+                for (const entry of entries) {
+                    // Look for notification entries
+                    const content = entry.content;
+                    if (!content) continue;
+
+                    // Check for notification with tweet
+                    const notification = content.itemContent?.notification_context?.notification ||
+                                        content.notification;
+
+                    if (notification) {
+                        // Extract the notification type
+                        const notifType = notification.notificationType || notification.type;
+
+                        // We care about reply notifications
+                        if (notifType === 'notification_reply' || notifType === 'reply') {
+                            const tweet = content.itemContent?.tweet_results?.result ||
+                                         notification.tweet?.result;
+
+                            if (tweet?.legacy && tweet?.core?.user_results?.result) {
+                                const user = tweet.core.user_results.result;
+                                const userLegacy = user.legacy || {};
+                                const tweetLegacy = tweet.legacy;
+
+                                const fromHandle = userLegacy.screen_name || user.screen_name || '';
+                                const tweetContent = tweetLegacy.full_text || '';
+                                const tweetId = tweet.rest_id || tweetLegacy.id_str;
+                                const inReplyTo = tweetLegacy.in_reply_to_status_id_str;
+
+                                if (fromHandle && tweetId) {
+                                    results.push({
+                                        fromHandle,
+                                        content: tweetContent,
+                                        threadUrl: `https://twitter.com/${fromHandle}/status/${tweetId}`,
+                                        inReplyTo
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Amendoa: Error extracting notifications', e);
+        }
+
+        return results;
+    };
+
     // Patch XHR Open to capture URL
     XHR.open = function (method, url) {
         // @ts-ignore
@@ -112,6 +199,19 @@
                                 payload: { actionType: 'FavoriteTweet', data }
                             }, '*');
                         }
+
+                        // Capture Notifications response
+                        if (url && (url.includes('Notifications') || url.includes('notifications'))) {
+                            console.error('Amendoa: 🟢 Captured Notifications via XHR', url);
+                            const replyNotifs = extractReplyNotifications(data);
+                            for (const notif of replyNotifs) {
+                                console.error('Amendoa: 📩 Reply notification from @' + notif.fromHandle);
+                                window.postMessage({
+                                    type: 'AMENDOA_NOTIFICATION_INTERCEPT',
+                                    payload: notif
+                                }, '*');
+                            }
+                        }
                     }
                 } catch (e) {
                     // Ignore parse errors
@@ -160,6 +260,19 @@
                     type: 'AMENDOA_ACTION_INTERCEPT',
                     payload: { actionType: 'FavoriteTweet', data }
                 }, '*');
+            }
+
+            // Capture Notifications response
+            if (url && (url.includes('Notifications') || url.includes('notifications'))) {
+                console.error('Amendoa: 🟢 Captured Notifications via Fetch', url);
+                const replyNotifs = extractReplyNotifications(data);
+                for (const notif of replyNotifs) {
+                    console.error('Amendoa: 📩 Reply notification from @' + notif.fromHandle);
+                    window.postMessage({
+                        type: 'AMENDOA_NOTIFICATION_INTERCEPT',
+                        payload: notif
+                    }, '*');
+                }
             }
         }).catch(() => { });
 
