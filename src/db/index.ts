@@ -8,6 +8,9 @@ export type Tier = 'titan' | 'star' | 'rising' | 'emerging' | 'peer';
 export type RelationshipStatus = 'mutual' | 'following' | 'follower' | 'none';
 export type ScoreBadge = 'hot' | 'high' | 'good' | 'meh' | 'skip';
 
+// Gamification tier names
+export type GamificationTier = 'Lurker' | 'Reply Guy' | 'Engager' | 'Networker' | 'Voice' | 'Authority' | 'Thought Leader';
+
 // =============================================================================
 // INTERFACES
 // =============================================================================
@@ -121,6 +124,64 @@ export interface Settings {
 }
 
 // =============================================================================
+// GAMIFICATION INTERFACES
+// =============================================================================
+
+/**
+ * GamificationProgress - daily progress for XP/streak tracking
+ */
+export interface GamificationProgress {
+    date: string;                      // "YYYY-MM-DD" (primary key, local date)
+
+    // Input actions (user controls these)
+    repliesSent: number;
+    postsPublished: number;
+    conversationsContinued: number;    // replied to someone who replied to them
+
+    // Output bonuses (other users' actions)
+    replyBacksReceived: number;
+    authorLikesReceived: number;
+    repliesWithFivePlusLikes: number;
+    newFollowers: number;
+    newMutuals: number;
+
+    // Calculated XP
+    baseXPEarned: number;              // before multiplier
+    multiplier: number;                // streak multiplier that day
+    totalXPEarned: number;             // base × multiplier
+
+    // Requirements check
+    streakMaintained: boolean;         // did user hit 25 replies + 3 posts?
+}
+
+/**
+ * UserGamificationStats - persistent user gamification stats
+ */
+export interface UserGamificationStats {
+    id: string;                        // always "main" (singleton)
+    totalXP: number;
+    currentStreak: number;
+    longestStreak: number;
+    lastActiveDate: string;            // "YYYY-MM-DD"
+
+    // Current tier/rank (derived, cached for performance)
+    currentTier: GamificationTier;
+    currentRank: string;               // "I", "II", "III", etc.
+    currentTierEmoji: string;
+
+    // Lifetime stats
+    totalReplies: number;
+    totalPosts: number;
+    totalConversations: number;
+    totalReplyBacks: number;
+    totalFollowersGained: number;
+
+    // Timestamps
+    createdAt: number;
+    updatedAt: number;
+}
+
+// =============================================================================
 // DATABASE CLASS
 // =============================================================================
 
@@ -131,6 +192,9 @@ export class AmendoaDB extends Dexie {
     conversations!: Table<Conversation>;
     dailyStats!: Table<DailyStats>;
     settings!: Table<Settings>;
+    // Gamification tables
+    gamificationProgress!: Table<GamificationProgress>;
+    userGamificationStats!: Table<UserGamificationStats>;
 
     constructor() {
         super('AmendoaDB');
@@ -170,6 +234,19 @@ export class AmendoaDB extends Dexie {
                 tweet.authorIsPremium = tweet.authorIsPremium ?? false;
             });
         });
+
+        // v9: Add Gamification System
+        // New tables: gamificationProgress, userGamificationStats
+        this.version(9).stores({
+            targetAccounts: 'handle, tier, lastInteraction, addedAt',
+            tweetCache: 'tweetId, authorHandle, postedAt, firstSeenAt, opportunityScore, isFromTarget',
+            ourReplies: 'replyId, inReplyToHandle, repliedAt',
+            conversations: 'id, otherPartyHandle, lastMessageAt, isObligation, isDismissed',
+            dailyStats: 'date',
+            settings: 'key',
+            gamificationProgress: 'date',
+            userGamificationStats: 'id'
+        });
     }
 }
 
@@ -180,10 +257,18 @@ export const db = new AmendoaDB();
 // =============================================================================
 
 /**
- * Get today's date in YYYY-MM-DD format
+ * Get today's date in YYYY-MM-DD format (LOCAL timezone)
+ * Uses toLocaleDateString with 'en-CA' locale for YYYY-MM-DD format
  */
 export function getTodayDate(): string {
-    return new Date().toISOString().split('T')[0];
+    return new Date().toLocaleDateString('en-CA');
+}
+
+/**
+ * Get local date string for any Date object
+ */
+export function getLocalDateString(date: Date): string {
+    return date.toLocaleDateString('en-CA');
 }
 
 /**
@@ -277,4 +362,82 @@ export async function cleanupOldData(): Promise<void> {
         .where('repliedAt')
         .below(now - REPLY_RETENTION)
         .delete();
+}
+
+// =============================================================================
+// GAMIFICATION HELPER FUNCTIONS
+// =============================================================================
+
+/**
+ * Create an empty GamificationProgress record for a date
+ */
+export function createEmptyGamificationProgress(date: string): GamificationProgress {
+    return {
+        date,
+        repliesSent: 0,
+        postsPublished: 0,
+        conversationsContinued: 0,
+        replyBacksReceived: 0,
+        authorLikesReceived: 0,
+        repliesWithFivePlusLikes: 0,
+        newFollowers: 0,
+        newMutuals: 0,
+        baseXPEarned: 0,
+        multiplier: 1.0,
+        totalXPEarned: 0,
+        streakMaintained: false
+    };
+}
+
+/**
+ * Create initial UserGamificationStats
+ */
+export function createInitialUserGamificationStats(): UserGamificationStats {
+    const now = Date.now();
+    return {
+        id: 'main',
+        totalXP: 0,
+        currentStreak: 0,
+        longestStreak: 0,
+        lastActiveDate: '',
+        currentTier: 'Lurker',
+        currentRank: 'I',
+        currentTierEmoji: '👀',
+        totalReplies: 0,
+        totalPosts: 0,
+        totalConversations: 0,
+        totalReplyBacks: 0,
+        totalFollowersGained: 0,
+        createdAt: now,
+        updatedAt: now
+    };
+}
+
+/**
+ * Get or create today's gamification progress
+ */
+export async function getOrCreateTodayGamificationProgress(): Promise<GamificationProgress> {
+    const today = getTodayDate();
+    let progress = await db.gamificationProgress.get(today);
+
+    if (!progress) {
+        progress = createEmptyGamificationProgress(today);
+        await db.gamificationProgress.add(progress);
+    }
+
+    return progress;
+}
+
+/**
+ * Get or create user gamification stats (singleton)
+ */
+export async function getOrCreateUserGamificationStats(): Promise<UserGamificationStats> {
+    let stats = await db.userGamificationStats.get('main');
+
+    if (!stats) {
+        stats = createInitialUserGamificationStats();
+        await db.userGamificationStats.add(stats);
+    }
+
+    return stats;
 }

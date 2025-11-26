@@ -15,6 +15,7 @@ import {
     type TweetData
 } from './scoreEngine';
 import { getTargetHandleSet, updateTargetProfile } from './targetManager';
+import { recordGamificationAction } from './gamification';
 
 // =============================================================================
 // TYPES
@@ -639,7 +640,7 @@ export async function trackIncomingReply(
         isDismissed: false
     });
 
-    // If they replied to one of our replies, mark it
+    // If they replied to one of our replies, mark it and award XP
     if (inReplyToOurTweetId) {
         const ourReply = await db.ourReplies.get(inReplyToOurTweetId);
         if (ourReply) {
@@ -652,6 +653,15 @@ export async function trackIncomingReply(
             // Increment response count
             const { incrementDailyStat } = await import('../db');
             await incrementDailyStat('repliesGotResponse');
+
+            // Award XP for reply-back (gamification)
+            const result = await recordGamificationAction('replyBack');
+            console.log(`[Amendoa v2] +${result.xpEarned} XP for reply-back from @${normalizedHandle}`);
+
+            // Emit XP earned event
+            window.dispatchEvent(new CustomEvent('AMENDOA_XP_EARNED', {
+                detail: { action: 'replyBack', ...result }
+            }));
         }
     }
 

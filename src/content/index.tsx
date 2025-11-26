@@ -14,6 +14,7 @@ import App from '../App';
 import { processInterceptedData, trackOutgoingReply, trackIncomingReply } from '../services/processor';
 import { badgeInjector } from '../services/badgeInjector';
 import { profileButtonInjector } from '../services/profileButtonInjector';
+import { recordGamificationAction, checkStreakOnLoad } from '../services/gamification';
 
 console.log('[Amendoa v2] Initializing...');
 
@@ -75,19 +76,43 @@ const MOUNT_POINT_ID = 'amendoa-root';
             }
         }
 
-        // User action intercepted (posting a reply)
+        // User action intercepted (posting a tweet or reply)
         if (event.data.type === 'AMENDOA_ACTION_INTERCEPT') {
             const { actionType, data } = event.data.payload;
 
-            if (actionType === 'CreateTweet') {
-                // Try to extract reply info
-                const replyId = data?.data?.create_tweet?.tweet_results?.result?.rest_id;
-                const inReplyTo = data?.data?.create_tweet?.tweet_results?.result?.legacy?.in_reply_to_status_id_str;
-                const inReplyToHandle = data?.data?.create_tweet?.tweet_results?.result?.legacy?.in_reply_to_screen_name;
-                const content = data?.data?.create_tweet?.tweet_results?.result?.legacy?.full_text;
+            if (actionType === 'CreateTweet' && data?.data?.create_tweet) {
+                // Extract tweet info
+                const tweetResult = data.data.create_tweet.tweet_results?.result;
+                const replyId = tweetResult?.rest_id;
+                const inReplyTo = tweetResult?.legacy?.in_reply_to_status_id_str;
+                const inReplyToHandle = tweetResult?.legacy?.in_reply_to_screen_name;
+                const content = tweetResult?.legacy?.full_text;
 
-                if (replyId && inReplyTo && inReplyToHandle) {
-                    trackOutgoingReply(replyId, inReplyTo, inReplyToHandle, content || '');
+                if (inReplyTo && inReplyToHandle) {
+                    // This is a REPLY
+                    console.log('[Amendoa v2] Detected reply to @' + inReplyToHandle);
+                    if (replyId) {
+                        trackOutgoingReply(replyId, inReplyTo, inReplyToHandle, content || '');
+                    }
+                    // Award gamification XP for reply
+                    recordGamificationAction('reply').then(result => {
+                        console.log(`[Amendoa v2] +${result.xpEarned} XP for reply (${result.multiplier}x multiplier)`);
+                        // Emit event for UI update
+                        window.dispatchEvent(new CustomEvent('AMENDOA_XP_EARNED', {
+                            detail: { action: 'reply', ...result }
+                        }));
+                    });
+                } else {
+                    // This is a POST (not a reply)
+                    console.log('[Amendoa v2] Detected new post');
+                    // Award gamification XP for post
+                    recordGamificationAction('post').then(result => {
+                        console.log(`[Amendoa v2] +${result.xpEarned} XP for post (${result.multiplier}x multiplier)`);
+                        // Emit event for UI update
+                        window.dispatchEvent(new CustomEvent('AMENDOA_XP_EARNED', {
+                            detail: { action: 'post', ...result }
+                        }));
+                    });
                 }
             }
         }
@@ -110,6 +135,18 @@ const MOUNT_POINT_ID = 'amendoa-root';
 
     // Initialize profile button injector
     console.log('[Amendoa v2] Profile button injector initialized:', profileButtonInjector ? '✓' : '✗');
+
+    // Check streak on load (gamification)
+    checkStreakOnLoad().then(result => {
+        if (result.streakBroken) {
+            console.log(`[Amendoa v2] 💔 Streak broken! Was ${result.previousStreak} days.`);
+            window.dispatchEvent(new CustomEvent('AMENDOA_STREAK_BROKEN', {
+                detail: result
+            }));
+        } else if (result.currentStreak > 0) {
+            console.log(`[Amendoa v2] 🔥 Streak: ${result.currentStreak} days`);
+        }
+    });
 
     // Success message
     console.log(

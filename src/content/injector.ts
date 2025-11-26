@@ -62,15 +62,8 @@
         // @ts-ignore
         this._method = method;
 
-        // Check for actions based on URL (these are usually reliable)
-        if (typeof url === 'string') {
-            if (url.includes('CreateTweet')) {
-                window.postMessage({ type: 'AMENDOA_ACTION_INTERCEPT', payload: { actionType: 'CreateTweet' } }, '*');
-            }
-            if (url.includes('FavoriteTweet')) {
-                window.postMessage({ type: 'AMENDOA_ACTION_INTERCEPT', payload: { actionType: 'FavoriteTweet' } }, '*');
-            }
-        }
+        // Note: We don't fire action intercept here anymore - we do it in response handler
+        // to get the actual response data
 
         return open.apply(this, arguments as any);
     };
@@ -90,15 +83,33 @@
                     const text = self.responseText;
                     if (text && (text.startsWith('{') || text.startsWith('['))) {
                         const data = JSON.parse(text);
+                        // @ts-ignore
+                        const url = self._url as string;
 
-                        // Content-based detection
+                        // Content-based detection for timeline data
                         if (isTimelineData(data)) {
-                            // @ts-ignore
-                            console.error('Amendoa: 🟢 Captured Timeline Data via XHR', self._url);
+                            console.error('Amendoa: 🟢 Captured Timeline Data via XHR', url);
                             window.postMessage({
                                 type: 'AMENDOA_DATA_INTERCEPT',
-                                // @ts-ignore
-                                payload: { url: self._url, data }
+                                payload: { url, data }
+                            }, '*');
+                        }
+
+                        // Capture CreateTweet response (for gamification)
+                        if (url && url.includes('CreateTweet') && data?.data?.create_tweet) {
+                            console.error('Amendoa: 🟢 Captured CreateTweet response via XHR');
+                            window.postMessage({
+                                type: 'AMENDOA_ACTION_INTERCEPT',
+                                payload: { actionType: 'CreateTweet', data }
+                            }, '*');
+                        }
+
+                        // Capture FavoriteTweet response
+                        if (url && url.includes('FavoriteTweet')) {
+                            console.error('Amendoa: 🟢 Captured FavoriteTweet response via XHR');
+                            window.postMessage({
+                                type: 'AMENDOA_ACTION_INTERCEPT',
+                                payload: { actionType: 'FavoriteTweet', data }
                             }, '*');
                         }
                     }
@@ -116,31 +127,38 @@
 
     // Patch Fetch
     const originalFetch = window.fetch;
-    window.fetch = async function (input, init) {
+    window.fetch = async function (input, _init) {
         const url = typeof input === 'string' ? input : input instanceof Request ? input.url : '';
-        // @ts-ignore
-        const _init = init;
-
-        if (url) {
-            if (url.includes('CreateTweet')) {
-                window.postMessage({ type: 'AMENDOA_ACTION_INTERCEPT', payload: { actionType: 'CreateTweet' } }, '*');
-            }
-            if (url.includes('FavoriteTweet')) {
-                window.postMessage({ type: 'AMENDOA_ACTION_INTERCEPT', payload: { actionType: 'FavoriteTweet' } }, '*');
-            }
-        }
 
         const response = await originalFetch.apply(this, arguments as any);
 
         const clone = response.clone();
 
         clone.json().then(data => {
-            // Content-based detection
+            // Content-based detection for timeline data
             if (isTimelineData(data)) {
                 console.error('Amendoa: 🟢 Captured Timeline Data via Fetch', url);
                 window.postMessage({
                     type: 'AMENDOA_DATA_INTERCEPT',
                     payload: { url, data }
+                }, '*');
+            }
+
+            // Capture CreateTweet response (for gamification)
+            if (url && url.includes('CreateTweet') && data?.data?.create_tweet) {
+                console.error('Amendoa: 🟢 Captured CreateTweet response via Fetch');
+                window.postMessage({
+                    type: 'AMENDOA_ACTION_INTERCEPT',
+                    payload: { actionType: 'CreateTweet', data }
+                }, '*');
+            }
+
+            // Capture FavoriteTweet response
+            if (url && url.includes('FavoriteTweet')) {
+                console.error('Amendoa: 🟢 Captured FavoriteTweet response via Fetch');
+                window.postMessage({
+                    type: 'AMENDOA_ACTION_INTERCEPT',
+                    payload: { actionType: 'FavoriteTweet', data }
                 }, '*');
             }
         }).catch(() => { });
