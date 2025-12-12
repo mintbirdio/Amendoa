@@ -22,18 +22,11 @@ interface GroupedObligations {
 function useObligations(): GroupedObligations {
     return useLiveQuery(
         async () => {
-            const obligations = await db.conversations
-                .where('isObligation')
-                .equals(1) // Dexie uses 1 for true
-                .and(c => !c.isDismissed)
-                .toArray();
-
-            // Fallback: also try boolean true
-            const obligationsAlt = await db.conversations
+            // Get all non-dismissed obligations
+            // Using filter instead of index since isObligation is stored as boolean
+            const all = await db.conversations
                 .filter(c => c.isObligation === true && !c.isDismissed)
                 .toArray();
-
-            const all = obligations.length > 0 ? obligations : obligationsAlt;
 
             const now = Date.now();
             const thirtyMinutes = 30 * 60 * 1000;

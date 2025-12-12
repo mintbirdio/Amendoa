@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Amendoa</title>
+    <meta name="description" content="Amendoa Privacy Policy. 100% local processing, no data collection, no external servers.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0B0E14;
+            color: #E2E8F0;
+        }
+        .logo-dot {
+            width: 16px;
+            height: 16px;
+            background-color: #f59e0b;
+            border-radius: 50%;
+            box-shadow: 0 0 12px #f59e0b;
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <!-- Navigation -->
+    <nav class="border-b border-slate-800 bg-slate-900/50 backdrop-blur">
+        <div class="max-w-4xl mx-auto px-4 py-4">
+            <a href="/" class="flex items-center gap-3">
+                <div class="logo-dot"></div>
+                <span class="font-bold text-xl tracking-tight text-white uppercase">Amendoa</span>
+            </a>
+        </div>
+    </nav>
+
+    <main class="max-w-4xl mx-auto px-4 py-16">
+        <h1 class="text-4xl font-bold mb-2">Privacy Policy</h1>
+        <p class="text-slate-500 mb-12">Last updated: December 12, 2025</p>
+
+        <div class="prose prose-invert prose-slate max-w-none space-y-8">
+
+            <section>
+                <h2 class="text-2xl font-bold text-white mb-4">Overview</h2>
+                <p class="text-slate-400 leading-relaxed">
+                    Amendoa is a Chrome extension that helps users identify high-value reply opportunities on X (formerly Twitter).
+                    <strong class="text-white">We are committed to your privacy: Amendoa collects no personal data, transmits no information to external servers, and operates entirely within your browser.</strong>
+                </p>
+            </section>
+
+            <section>
+                <h2 class="text-2xl font-bold text-white mb-4">Data We Do NOT Collect</h2>
+                <ul class="text-slate-400 space-y-2 list-disc list-inside">
+                    <li>Personal information (name, email, etc.)</li>
+                    <li>Your X/Twitter credentials or authentication tokens</li>
+                    <li>Your browsing history</li>
+                    <li>Your tweets or reply content</li>
+                    <li>Analytics or usage statistics</li>
+                    <li>Any data transmitted to our servers (we have no servers)</li>
+                </ul>
+            </section>
+
+            <section>
+                <h2 class="text-2xl font-bold text-white mb-4">How Amendoa Works</h2>
+                <p class="text-slate-400 leading-relaxed mb-4">
+                    Amendoa operates entirely within your browser using the following approach:
+                </p>
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
+                    <div>
+                        <h3 class="text-white font-semibold mb-2">1. Data Processing</h3>
+                        <p class="text-slate-400 text-sm">
+                            The extension reads publicly visible tweet data from your X feed (author name, follower count, tweet timestamp, reply count)
+                            to calculate opportunity scores. This processing happens entirely in your browser.
+                        </p>
+                    </div>
+                    <div>
+                        <h3 class="text-white font-semibold mb-2">2. Local Storage</h3>
+                        <p class="text-slate-400 text-sm">
+                            All data is stored locally in your browser's IndexedDB. This includes cached tweet scores, your gamification progress,
+                            and settings. This data never leaves your device.
+                        </p>
+                    </div>
+                    <div>
+                        <h3 class="text-white font-semibold mb-2">3. No External Communication</h3>
+                        <p class="text-slate-400 text-sm">
+                            Amendoa makes zero network requests to external servers. The only network activity is your normal browsing of X.com,
+                            which Amendoa observes but does not intercept, modify, or redirect.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2 class="text-2xl font-bold text-white mb-4">Permissions Explained</h2>
+                <p class="text-slate-400 leading-relaxed mb-4">
+                    Amendoa requests the following Chrome permissions:
+                </p>
+                <div class="space-y-4">
+                    <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
+                        <code class="text-orange-400 text-sm">host_permissions: ["*://x.com/*", "*://twitter.com/*"]</code>
+                        <p class="text-slate-500 text-sm mt-2">
+                            Required to read tweet data from your X feed and display the sidebar HUD. We only access X.com pages.
+                        </p>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
+                        <code class="text-orange-400 text-sm">storage</code>
+                        <p class="text-slate-500 text-sm mt-2">
+                            Required to save your settings and gamification progress locally in your browser.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2 class="text-2xl font-bold text-white mb-4">Data Retention</h2>
+                <p class="text-slate-400 leading-relaxed">
+                    All data is stored locally and automatically cleaned up:
+                </p>
+                <ul class="text-slate-400 space-y-2 list-disc list-inside mt-4">
+                    <li><strong class="text-slate-300">Tweet cache:</strong> 7 days</li>
+                    <li><strong class="text-slate-300">Conversation history:</strong> 30 days</li>
+                    <li><strong class="text-slate-300">Your reply records:</strong> 90 days</li>
+                    <li><strong class="text-slate-300">Gamification stats:</strong> Persistent (until you uninstall)</li>
+                </ul>
+                <p class="text-slate-400 leading-relaxed mt-4">
+                    You can clear all Amendoa data at any time by uninstalling the extension or clearing your browser's site data for X.com.
+                </p>
+            </section>
+
+            <section>
+                <h2 class="text-2xl font-bold text-white mb-4">Third-Party Services</h2>
+                <p class="text-slate-400 leading-relaxed">
+                    Amendoa does not integrate with any third-party analytics, advertising, or data collection services.
+                    We do not use Google Analytics, Mixpanel, Segment, or any similar tools.
+                </p>
+            </section>
+
+            <section>
+                <h2 class="text-2xl font-bold text-white mb-4">Open Source</h2>
+                <p class="text-slate-400 leading-relaxed">
+                    Amendoa's source code is available for inspection at
+                    <a href="https://github.com/pedroguedes/Amendoa" class="text-orange-400 hover:underline">github.com/pedroguedes/Amendoa</a>.
+                    You can verify our privacy claims by reviewing the code yourself.
+                </p>
+            </section>
+
+            <section>
+                <h2 class="text-2xl font-bold text-white mb-4">Changes to This Policy</h2>
+                <p class="text-slate-400 leading-relaxed">
+                    If we ever change our privacy practices, we will update this page and the "Last updated" date above.
+                    Since Amendoa is local-only by design, significant privacy changes are unlikely.
+                </p>
+            </section>
+
+            <section>
+                <h2 class="text-2xl font-bold text-white mb-4">Contact</h2>
+                <p class="text-slate-400 leading-relaxed">
+                    If you have questions about this privacy policy, please open an issue on our
+                    <a href="https://github.com/pedroguedes/Amendoa/issues" class="text-orange-400 hover:underline">GitHub repository</a>
+                    or reach out on X: <a href="https://x.com/pedrogedge" class="text-orange-400 hover:underline">@pedrogedge</a>.
+                </p>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800 py-8 mt-16">
+        <div class="max-w-4xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <a href="/" class="flex items-center gap-2 text-slate-500 hover:text-white transition-colors">
+                ← Back to Amendoa
+            </a>
+            <div class="text-sm text-slate-600">
+                © 2025 Amendoa. All rights reserved.
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

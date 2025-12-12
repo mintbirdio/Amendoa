@@ -12,7 +12,7 @@ import { type GamificationStatus, type WeeklyStats, getGamificationStatus, getWe
 // =============================================================================
 
 export interface StatsImageOptions {
-    type: 'rank-up' | 'weekly' | 'milestone';
+    type: 'rank-up' | 'weekly' | 'daily' | 'milestone';
     previousTier?: string;
     previousRank?: string;
     newTier?: string;
@@ -25,8 +25,10 @@ export interface StatsImageOptions {
 // CONSTANTS
 // =============================================================================
 
-const CANVAS_WIDTH = 600;
-const CANVAS_HEIGHT = 315; // Twitter card aspect ratio
+// Use 3x resolution for sharp/retina display
+const SCALE = 3;
+const CANVAS_WIDTH = 600 * SCALE;
+const CANVAS_HEIGHT = 315 * SCALE; // Twitter card aspect ratio
 
 const COLORS = {
     background: '#0d0d0d',
@@ -87,17 +89,6 @@ function drawBackground(ctx: CanvasRenderingContext2D, width: number, height: nu
     gradient.addColorStop(1, COLORS.backgroundGradient2);
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
-
-    // Add subtle pattern overlay
-    ctx.globalAlpha = 0.03;
-    for (let i = 0; i < width; i += 20) {
-        ctx.beginPath();
-        ctx.moveTo(i, 0);
-        ctx.lineTo(i, height);
-        ctx.strokeStyle = COLORS.text;
-        ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
 }
 
 /**
@@ -106,21 +97,21 @@ function drawBackground(ctx: CanvasRenderingContext2D, width: number, height: nu
 function drawBranding(ctx: CanvasRenderingContext2D, width: number): void {
     // Logo dot
     ctx.beginPath();
-    ctx.arc(30, 30, 6, 0, Math.PI * 2);
+    ctx.arc(30 * SCALE, 28 * SCALE, 8 * SCALE, 0, Math.PI * 2);
     ctx.fillStyle = COLORS.primary;
     ctx.fill();
 
     // Logo text
-    ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = `bold ${16 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
     ctx.fillStyle = COLORS.text;
     ctx.textAlign = 'left';
-    ctx.fillText('AMENDOA', 45, 35);
+    ctx.fillText('AMENDOA', 50 * SCALE, 34 * SCALE);
 
     // Watermark
-    ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = `${12 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
     ctx.fillStyle = COLORS.textMuted;
     ctx.textAlign = 'right';
-    ctx.fillText('amendoa.app', width - 20, 30);
+    ctx.fillText('amendoa.app', width - 20 * SCALE, 30 * SCALE);
 }
 
 /**
@@ -321,6 +312,156 @@ async function generateWeeklyImage(
 }
 
 /**
+ * Generate daily stats image - Clean layout with 4 stat cards
+ */
+async function generateDailyImage(status: GamificationStatus): Promise<Blob> {
+    const canvas = createCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
+    const ctx = canvas.getContext('2d')!;
+
+    // Background
+    drawBackground(ctx, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+    const padding = 24 * SCALE;
+    const centerX = CANVAS_WIDTH / 2;
+
+    // === TOP BAR: Branding ===
+    ctx.beginPath();
+    ctx.arc(padding + 8 * SCALE, 28 * SCALE, 8 * SCALE, 0, Math.PI * 2);
+    ctx.fillStyle = COLORS.primary;
+    ctx.shadowColor = COLORS.primary;
+    ctx.shadowBlur = 12 * SCALE;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    ctx.font = `bold ${14 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    ctx.fillStyle = COLORS.text;
+    ctx.textAlign = 'left';
+    ctx.fillText('AMENDOA', padding + 24 * SCALE, 33 * SCALE);
+
+    // .APP suffix in muted color
+    const amendoaWidth = ctx.measureText('AMENDOA').width;
+    ctx.fillStyle = COLORS.primary;
+    ctx.fillText('.APP', padding + 24 * SCALE + amendoaWidth, 33 * SCALE);
+
+    // === HEADER: Today's Stats ===
+    ctx.font = `bold ${12 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    ctx.fillStyle = COLORS.primary;
+    ctx.textAlign = 'center';
+    ctx.fillText("TODAY'S STATS", centerX, 70 * SCALE);
+
+    // Date
+    const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    ctx.font = `${11 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.fillText(today, centerX, 86 * SCALE);
+
+    // === LEVEL DISPLAY ===
+    const levelY = 130 * SCALE;
+
+    // Emoji + Tier name on same line
+    ctx.font = `${44 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(status.rankInfo.emoji, centerX - 90 * SCALE, levelY);
+
+    ctx.font = `bold ${38 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    ctx.fillStyle = COLORS.text;
+    ctx.textAlign = 'left';
+    ctx.fillText(`${status.rankInfo.tier} ${status.rankInfo.rank}`, centerX - 55 * SCALE, levelY);
+
+    // "Level" label below
+    ctx.font = `${14 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.textAlign = 'center';
+    ctx.fillText('Level', centerX, levelY + 24 * SCALE);
+
+    // === PROGRESS BAR ===
+    const progressY = levelY + 45 * SCALE;
+    const progressWidth = 320 * SCALE;
+    const progressHeight = 8 * SCALE;
+    const progressX = centerX - progressWidth / 2;
+
+    drawRoundedRect(ctx, progressX, progressY, progressWidth, progressHeight, progressHeight / 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.fill();
+
+    const fillWidth = Math.max(progressHeight, progressWidth * (status.rankInfo.progressPercent / 100));
+    drawRoundedRect(ctx, progressX, progressY, fillWidth, progressHeight, progressHeight / 2);
+    const gradient = ctx.createLinearGradient(progressX, progressY, progressX + fillWidth, progressY);
+    gradient.addColorStop(0, COLORS.primary);
+    gradient.addColorStop(1, COLORS.secondary);
+    ctx.fillStyle = gradient;
+    ctx.fill();
+
+    // XP info centered below
+    const xpToNext = Math.floor(status.rankInfo.xpForNextRank - status.rankInfo.xpIntoRank);
+    ctx.font = `${11 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.textAlign = 'center';
+    ctx.fillText(`${status.totalXP.toLocaleString()} XP · ${xpToNext.toLocaleString()} to next level`, centerX, progressY + 22 * SCALE);
+
+    // === 4 STAT CARDS ===
+    const cardY = 205 * SCALE;
+    const cardWidth = 125 * SCALE;
+    const cardHeight = 70 * SCALE;
+    const cardGap = 12 * SCALE;
+    const totalCardsWidth = cardWidth * 4 + cardGap * 3;
+    const cardsStartX = (CANVAS_WIDTH - totalCardsWidth) / 2;
+
+    const stats = [
+        { value: `+${status.todayXP}`, label: 'XP TODAY', color: COLORS.xp },
+        { value: status.todayPosts.toString(), label: 'POSTS', color: '#3b82f6' },
+        { value: status.todayReplies.toString(), label: 'REPLIES', color: COLORS.primary },
+        { value: status.currentStreak.toString(), label: 'DAY STREAK', color: '#ef4444' }
+    ];
+
+    stats.forEach((stat, index) => {
+        const cardX = cardsStartX + index * (cardWidth + cardGap);
+
+        // Card background
+        drawRoundedRect(ctx, cardX, cardY, cardWidth, cardHeight, 10 * SCALE);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.lineWidth = 1 * SCALE;
+        ctx.stroke();
+
+        // Value
+        ctx.font = `bold ${28 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+        ctx.fillStyle = stat.color;
+        ctx.textAlign = 'center';
+        ctx.fillText(stat.value, cardX + cardWidth / 2, cardY + 38 * SCALE);
+
+        // Label
+        ctx.font = `${9 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+        ctx.fillStyle = COLORS.textMuted;
+        ctx.fillText(stat.label, cardX + cardWidth / 2, cardY + 56 * SCALE);
+
+        // Multiplier badge for streak card
+        if (index === 3 && status.multiplier > 1) {
+            const badgeWidth = 42 * SCALE;
+            const badgeHeight = 16 * SCALE;
+            const badgeX = cardX + cardWidth / 2 - badgeWidth / 2;
+            const badgeY = cardY + cardHeight - 8 * SCALE;
+
+            drawRoundedRect(ctx, badgeX, badgeY, badgeWidth, badgeHeight, 4 * SCALE);
+            ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(245, 158, 11, 0.4)';
+            ctx.lineWidth = 1 * SCALE;
+            ctx.stroke();
+
+            ctx.font = `bold ${8 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+            ctx.fillStyle = COLORS.primary;
+            ctx.fillText(`${status.multiplier}x XP`, badgeX + badgeWidth / 2, badgeY + 11 * SCALE);
+        }
+    });
+
+    return new Promise((resolve) => {
+        canvas.toBlob((blob) => resolve(blob!), 'image/png', 1.0);
+    });
+}
+
+/**
  * Generate milestone celebration image
  */
 async function generateMilestoneImage(
@@ -407,6 +548,9 @@ export async function generateStatsImage(options: StatsImageOptions): Promise<Bl
             const weekly = await getWeeklyStats();
             return generateWeeklyImage(status, weekly);
 
+        case 'daily':
+            return generateDailyImage(status);
+
         case 'milestone':
             return generateMilestoneImage(
                 status,
@@ -456,38 +600,46 @@ export async function generateAndDownload(
 }
 
 /**
- * Generate image and open share dialog (Twitter intent)
+ * Generate image and download it
  */
 export async function generateAndShare(
-    options: StatsImageOptions,
-    shareText: string = ''
+    options: StatsImageOptions
 ): Promise<void> {
-    // First copy image to clipboard
-    const copied = await generateAndCopyToClipboard(options);
+    // Generate the image
+    const blob = await generateStatsImage(options);
+    const url = URL.createObjectURL(blob);
 
-    // Open Twitter compose with pre-filled text
-    const tweetText = shareText || getDefaultShareText(options);
-    const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`;
+    // Create filename based on type
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filename = `amendoa-${options.type}-${dateStr}.png`;
 
-    // Open in new tab
-    window.open(twitterUrl, '_blank');
+    // Download the image
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 
-    if (copied) {
-        // Alert user that image is in clipboard
-        console.log('[Amendoa] Stats image copied to clipboard - paste it into your tweet!');
-    }
+    // Small delay to ensure download starts
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    URL.revokeObjectURL(url);
 }
 
 /**
- * Get default share text based on image type
+ * Get default share text based on image type (kept for potential future use)
  */
-function getDefaultShareText(options: StatsImageOptions): string {
+function _getDefaultShareText(options: StatsImageOptions): string {
     switch (options.type) {
         case 'rank-up':
             return `Just ranked up to ${options.newTier} ${options.newRank}! 🚀\n\nBuilding my network one reply at a time with @AmendoaApp`;
 
         case 'weekly':
             return `My engagement stats this week 📊\n\nTracking my growth with @AmendoaApp`;
+
+        case 'daily':
+            return `Today's engagement stats 📊\n\nTracking my growth with @AmendoaApp`;
 
         case 'milestone':
             if (options.milestoneType === 'streak') {
@@ -502,3 +654,4 @@ function getDefaultShareText(options: StatsImageOptions): string {
             return `Check out my stats from @AmendoaApp!`;
     }
 }
+void _getDefaultShareText; // Suppress unused warning - kept for potential future use

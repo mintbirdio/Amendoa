@@ -29,14 +29,18 @@ export const XP_VALUES = {
     authorLike: 8,
     replyFivePlusLikes: 15,
     newFollower: 50,
-    newMutual: 100
+    newMutual: 100,
+    // Bonus XP for hitting daily goals
+    repliesGoalBonus: 50,    // Bonus when hitting reply goal
+    postsGoalBonus: 30       // Bonus when hitting posts goal
 } as const;
 
-// Daily requirements for streak maintenance
+// Daily goals (for bonus XP, NOT streak requirements)
+// Streak is maintained by ANY activity - goals are optional bonuses
 export const DAILY_REQUIREMENTS = {
-    minReplies: 25,
-    minPosts: 3,
-    maxRewardedPosts: 5
+    minReplies: 25,          // Goal for bonus XP
+    minPosts: 3,             // Goal for bonus XP
+    maxRewardedPosts: 5      // Cap on post XP per day
 } as const;
 
 // Tier definitions with XP thresholds
@@ -79,6 +83,7 @@ export type GamificationAction =
 
 export interface TierRankInfo {
     tier: GamificationTier;
+    tierNumber: number;  // 1-based level number for "Level X" display
     emoji: string;
     rank: string;
     display: string;
@@ -125,8 +130,20 @@ export function daysBetween(dateStr1: string, dateStr2: string): number {
 }
 
 /**
+ * Check if user had ANY activity on a given day
+ * Activity = at least 1 reply OR 1 post (any engagement counts)
+ */
+function hadActivityOnDay(progress: GamificationProgress | undefined): boolean {
+    if (!progress) return false;
+    return progress.repliesSent > 0 || progress.postsPublished > 0;
+}
+
+/**
  * Check and update streak on session start
  * Call this when the extension loads
+ *
+ * NEW LOGIC: Streak is maintained by ANY activity (1+ reply or post)
+ * Goals are optional - they give bonus XP, not required for streak
  */
 export async function checkStreakOnLoad(): Promise<{
     streakBroken: boolean;
@@ -155,11 +172,11 @@ export async function checkStreakOnLoad(): Promise<{
         return result;
     }
 
-    // Yesterday - check if requirements were met
+    // Yesterday - check if there was ANY activity (not goals, just activity)
     if (daysSinceActive === 1) {
         const yesterdayProgress = await db.gamificationProgress.get(lastActiveDate);
-        if (yesterdayProgress && yesterdayProgress.streakMaintained) {
-            // Streak continues - increment it
+        if (hadActivityOnDay(yesterdayProgress)) {
+            // Had activity yesterday - streak continues!
             const newStreak = stats.currentStreak + 1;
             await db.userGamificationStats.update('main', {
                 currentStreak: newStreak,
@@ -169,7 +186,7 @@ export async function checkStreakOnLoad(): Promise<{
             result.currentStreak = newStreak;
             return result;
         } else {
-            // Requirements not met - break streak
+            // No activity at all yesterday - break streak
             await db.userGamificationStats.update('main', {
                 currentStreak: 0,
                 updatedAt: Date.now()
@@ -230,8 +247,11 @@ export function getTierAndRank(totalXP: number): TierRankInfo {
         const thoughtLeaderXP = totalXP - 300000;
         const rankNum = Math.floor(thoughtLeaderXP / 100000) + 1;
         const xpIntoRank = thoughtLeaderXP % 100000;
+        // Thought Leader starts at level 19 (6 tiers × 3 ranks + rankNum)
+        const tierNumber = 18 + rankNum;
         return {
             tier: tier.name,
+            tierNumber,
             emoji: tier.emoji,
             rank: toRomanNumeral(rankNum),
             display: `${tier.emoji} ${tier.name} ${toRomanNumeral(rankNum)}`,
@@ -248,26 +268,35 @@ export function getTierAndRank(totalXP: number): TierRankInfo {
     const progress = xpIntoTier / tierSpan;
 
     let rank: string;
+    let rankNumber: number;
     let xpIntoRank: number;
     let xpForNextRank: number;
     const rankSpan = tierSpan / 3;
 
     if (progress < 0.333) {
         rank = 'I';
+        rankNumber = 1;
         xpIntoRank = xpIntoTier;
         xpForNextRank = rankSpan;
     } else if (progress < 0.666) {
         rank = 'II';
+        rankNumber = 2;
         xpIntoRank = xpIntoTier - rankSpan;
         xpForNextRank = rankSpan;
     } else {
         rank = 'III';
+        rankNumber = 3;
         xpIntoRank = xpIntoTier - (rankSpan * 2);
         xpForNextRank = rankSpan;
     }
 
+    // Calculate level: tierIndex * 3 + rankNumber
+    // Lurker I = 1, Lurker II = 2, Lurker III = 3, Reply Guy I = 4, etc.
+    const tierNumber = (tierIndex * 3) + rankNumber;
+
     return {
         tier: tier.name,
+        tierNumber,
         emoji: tier.emoji,
         rank,
         display: `${tier.emoji} ${tier.name} ${rank}`,
@@ -296,13 +325,35 @@ export function calculateActionXP(
 }
 
 /**
- * Check if daily requirements are met for streak
+ * Check if daily GOALS are met (for bonus XP display)
+ * Note: This is separate from streak - streak only requires ANY activity
  */
-export function checkStreakRequirements(progress: GamificationProgress): boolean {
+export function checkDailyGoalsMet(progress: GamificationProgress): boolean {
     return (
         progress.repliesSent >= DAILY_REQUIREMENTS.minReplies &&
         progress.postsPublished >= DAILY_REQUIREMENTS.minPosts
     );
+}
+
+/**
+ * Check if replies goal is met
+ */
+export function checkRepliesGoalMet(progress: GamificationProgress): boolean {
+    return progress.repliesSent >= DAILY_REQUIREMENTS.minReplies;
+}
+
+/**
+ * Check if posts goal is met
+ */
+export function checkPostsGoalMet(progress: GamificationProgress): boolean {
+    return progress.postsPublished >= DAILY_REQUIREMENTS.minPosts;
+}
+
+/**
+ * Check if user has ANY activity today (maintains streak)
+ */
+export function hasActivityToday(progress: GamificationProgress): boolean {
+    return progress.repliesSent > 0 || progress.postsPublished > 0;
 }
 
 // =============================================================================
@@ -323,9 +374,9 @@ export async function recordGamificationAction(
     // Get previous rank info for comparison
     const previousRankInfo = getTierAndRank(userStats.totalXP);
 
-    // Calculate XP
-    const baseXP = calculateActionXP(action, dailyProgress);
-    const earnedXP = Math.floor(baseXP * multiplier);
+    // Calculate base XP for the action
+    let baseXP = calculateActionXP(action, dailyProgress);
+    let bonusXP = 0;
 
     // Update daily progress counters
     const updates: Partial<GamificationProgress> = {};
@@ -357,14 +408,37 @@ export async function recordGamificationAction(
             break;
     }
 
+    // Check for goal completion bonuses (only award once when hitting the goal)
+    const updatedProgress = { ...dailyProgress, ...updates };
+
+    // Reply goal bonus: award when hitting exactly the target
+    if (action === 'reply' &&
+        dailyProgress.repliesSent < DAILY_REQUIREMENTS.minReplies &&
+        updatedProgress.repliesSent! >= DAILY_REQUIREMENTS.minReplies) {
+        bonusXP += XP_VALUES.repliesGoalBonus;
+        console.log(`[Amendoa] 🎯 Replies goal reached! +${XP_VALUES.repliesGoalBonus} bonus XP`);
+    }
+
+    // Posts goal bonus: award when hitting exactly the target
+    if (action === 'post' &&
+        dailyProgress.postsPublished < DAILY_REQUIREMENTS.minPosts &&
+        updatedProgress.postsPublished! >= DAILY_REQUIREMENTS.minPosts) {
+        bonusXP += XP_VALUES.postsGoalBonus;
+        console.log(`[Amendoa] 🎯 Posts goal reached! +${XP_VALUES.postsGoalBonus} bonus XP`);
+    }
+
+    // Calculate total XP with multiplier (bonus XP also gets multiplied)
+    const totalBaseXP = baseXP + bonusXP;
+    const earnedXP = Math.floor(totalBaseXP * multiplier);
+
     // Update XP totals
-    updates.baseXPEarned = dailyProgress.baseXPEarned + baseXP;
+    updates.baseXPEarned = dailyProgress.baseXPEarned + totalBaseXP;
     updates.multiplier = multiplier;
     updates.totalXPEarned = dailyProgress.totalXPEarned + earnedXP;
 
-    // Merge updates with current progress for streak check
-    const updatedProgress = { ...dailyProgress, ...updates };
-    updates.streakMaintained = checkStreakRequirements(updatedProgress);
+    // streakMaintained now means "has activity" (any reply or post)
+    // This is used for display purposes
+    updates.streakMaintained = hasActivityToday(updatedProgress as GamificationProgress);
 
     await db.gamificationProgress.update(today, updates);
 
@@ -440,9 +514,11 @@ export interface GamificationStatus {
     todayReplies: number;
     todayPosts: number;
     todayXP: number;
-    streakSafe: boolean;
-    repliesNeeded: number;
-    postsNeeded: number;
+    streakSafe: boolean;          // Has ANY activity today (streak is safe)
+    repliesGoalMet: boolean;      // Hit 25 replies goal
+    postsGoalMet: boolean;        // Hit 3 posts goal
+    repliesNeeded: number;        // For goal, not streak
+    postsNeeded: number;          // For goal, not streak
 
     // Today's bonuses
     todayReplyBacks: number;
@@ -476,7 +552,10 @@ export async function getGamificationStatus(): Promise<GamificationStatus> {
         todayReplies: todayProgress.repliesSent,
         todayPosts: todayProgress.postsPublished,
         todayXP: todayProgress.totalXPEarned,
-        streakSafe: todayProgress.streakMaintained,
+        // streakSafe = any activity today (1+ reply or post)
+        streakSafe: hasActivityToday(todayProgress),
+        repliesGoalMet: checkRepliesGoalMet(todayProgress),
+        postsGoalMet: checkPostsGoalMet(todayProgress),
         repliesNeeded,
         postsNeeded,
 

@@ -145,7 +145,7 @@ class ProfileButtonInjector {
     }
 
     private startObserving() {
-        console.log('[Amendoa v2] ProfileButtonInjector: Starting...');
+        console.log('[Amendoa] ProfileButtonInjector: Starting...');
         this.injectStyles();
 
         // Watch for URL changes (SPA navigation)
@@ -314,7 +314,7 @@ class ProfileButtonInjector {
             return;
         }
 
-        console.log(`[Amendoa v2] ProfileButtonInjector: Injected button for @${profileData.handle}`);
+        console.log(`[Amendoa] ProfileButtonInjector: Injected button for @${profileData.handle}`);
     }
 
     private async checkIsTarget(handle: string): Promise<boolean> {
@@ -358,9 +358,9 @@ class ProfileButtonInjector {
             try {
                 await db.targetAccounts.delete(normalizeHandle(profileData.handle));
                 this.updateButtonContent(button, false);
-                console.log(`[Amendoa v2] Removed target: @${profileData.handle}`);
+                console.log(`[Amendoa] Removed target: @${profileData.handle}`);
             } catch (err) {
-                console.error('[Amendoa v2] Failed to remove target:', err);
+                console.error('[Amendoa] Failed to remove target:', err);
             } finally {
                 button.classList.remove('amendoa-profile-btn--loading');
             }
@@ -450,13 +450,13 @@ class ProfileButtonInjector {
                 tier
             });
             this.updateButtonContent(button, true);
-            console.log(`[Amendoa v2] Added target: @${profileData.handle} (${tier})`);
+            console.log(`[Amendoa] Added target: @${profileData.handle} (${tier})`);
 
             window.dispatchEvent(new CustomEvent('AMENDOA_TARGET_ADDED', {
                 detail: { handle: profileData.handle }
             }));
         } catch (err) {
-            console.error('[Amendoa v2] Failed to add target:', err);
+            console.error('[Amendoa] Failed to add target:', err);
             button.textContent = 'Error';
             setTimeout(() => {
                 this.updateButtonContent(button, false);

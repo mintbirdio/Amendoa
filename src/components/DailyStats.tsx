@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Share2 } from 'lucide-react';
+import { Share2, Check } from 'lucide-react';
 import { useGamificationStatus, useDailyRequirements } from '../hooks/useGamification';
 import { DAILY_REQUIREMENTS } from '../services/gamification';
 import { generateAndShare } from '../services/statsImageGenerator';
 
 /**
- * Progress bar component for daily requirements
+ * Progress bar component for daily goals
  */
 const ProgressBar: React.FC<{
     current: number;
@@ -28,8 +28,8 @@ const ProgressBar: React.FC<{
                     style={{ width: `${progress}%` }}
                 />
             </div>
-            <span className={`text-xs w-10 text-right font-medium ${isComplete ? 'text-green-400' : 'text-gray-400'}`}>
-                {current}/{max} {isComplete && '✓'}
+            <span className={`text-xs w-12 text-right font-medium ${isComplete ? 'text-green-400' : 'text-gray-400'}`}>
+                {current}/{max}{isComplete && ' ✓'}
             </span>
         </div>
     );
@@ -43,46 +43,56 @@ export const DailyStats: React.FC = () => {
     const status = useGamificationStatus();
     const requirements = useDailyRequirements();
     const [isSharing, setIsSharing] = useState(false);
+    const [shareState, setShareState] = useState<'idle' | 'downloaded' | 'error'>('idle');
 
     const { rankInfo, currentStreak, multiplier, todayXP, streakSafe } = status;
 
     // Handle share button click
     const handleShare = async () => {
         setIsSharing(true);
+        setShareState('idle');
         try {
-            await generateAndShare({ type: 'weekly' });
+            await generateAndShare({ type: 'daily' });
+            setShareState('downloaded');
+            // Reset after 4 seconds
+            setTimeout(() => setShareState('idle'), 4000);
         } catch (err) {
             console.error('[Amendoa] Failed to share stats:', err);
+            setShareState('error');
+            setTimeout(() => setShareState('idle'), 4000);
         }
         setIsSharing(false);
     };
 
     // Determine streak status display
+    // NEW: Streak only requires ANY activity (1+ reply or post), not hitting goals
     const getStreakDisplay = () => {
         if (currentStreak === 0) {
             return {
                 icon: '⚡',
                 text: 'Start your streak!',
-                subtext: 'Hit daily goals to begin',
+                subtext: 'Any activity counts',
                 color: 'text-gray-400',
                 bg: 'bg-white/5'
             };
         }
 
         if (streakSafe) {
+            // Already have activity today - streak is safe
             return {
                 icon: '🔥',
                 text: `${currentStreak} day streak`,
-                subtext: `${multiplier}x XP multiplier`,
+                subtext: multiplier > 1 ? `${multiplier}x XP multiplier` : 'Keep it going!',
                 color: 'text-orange-400',
                 bg: 'bg-gradient-to-r from-orange-500/20 to-red-500/20'
             };
         }
 
+        // No activity yet today - streak at risk
         return {
             icon: '⚠️',
             text: `${currentStreak} day streak`,
-            subtext: 'At risk! Complete goals',
+            subtext: 'Do 1 reply or post to keep it!',
             color: 'text-yellow-400',
             bg: 'bg-yellow-500/10'
         };
@@ -109,21 +119,11 @@ export const DailyStats: React.FC = () => {
                             </div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <div className="text-right">
-                            <div className="text-base font-bold text-green-400">
-                                +{todayXP}
-                            </div>
-                            <div className="text-[9px] text-gray-500 uppercase">today</div>
+                    <div className="text-right">
+                        <div className="text-base font-bold text-green-400">
+                            +{todayXP}
                         </div>
-                        <button
-                            onClick={handleShare}
-                            disabled={isSharing}
-                            className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-md transition-colors disabled:opacity-50"
-                            title="Share your stats"
-                        >
-                            <Share2 size={14} className={isSharing ? 'animate-pulse' : ''} />
-                        </button>
+                        <div className="text-[9px] text-gray-500 uppercase">today</div>
                     </div>
                 </div>
 
@@ -179,14 +179,48 @@ export const DailyStats: React.FC = () => {
                     icon="📝"
                 />
 
-                {/* Streak Safe Indicator */}
-                {streakSafe && (
-                    <div className="mt-2 pt-2 border-t border-white/5 text-center">
+                {/* Streak indicator */}
+                <div className="mt-2 pt-2 border-t border-white/5 text-center">
+                    {streakSafe ? (
                         <span className="text-[10px] text-green-400 font-medium">
                             ✓ Streak secured for today!
                         </span>
-                    </div>
-                )}
+                    ) : (
+                        <span className="text-[10px] text-gray-500">
+                            1 reply or post = streak safe
+                        </span>
+                    )}
+                </div>
+            </div>
+
+            {/* Share Button - Prominent at bottom */}
+            <div className="px-3 py-2.5 border-t border-white/10 bg-black/20">
+                <button
+                    onClick={handleShare}
+                    disabled={isSharing}
+                    className={`w-full flex items-center justify-center gap-2 py-2 px-3 text-white text-xs font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                        shareState === 'downloaded'
+                            ? 'bg-green-600'
+                            : 'bg-gradient-to-r from-purple-600/80 to-pink-600/80 hover:from-purple-500 hover:to-pink-500'
+                    }`}
+                >
+                    {shareState === 'downloaded' ? (
+                        <>
+                            <Check size={14} />
+                            Image saved!
+                        </>
+                    ) : isSharing ? (
+                        <>
+                            <Share2 size={14} className="animate-spin" />
+                            Generating...
+                        </>
+                    ) : (
+                        <>
+                            <Share2 size={14} />
+                            Download Stats Image
+                        </>
+                    )}
+                </button>
             </div>
         </div>
     );

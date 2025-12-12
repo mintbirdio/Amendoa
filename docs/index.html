@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amendoa - The Reply Opportunity HUD for X</title>
+    <meta name="description" content="Stop scrolling. Start targeting. Amendoa surfaces high-value reply opportunities on X in real-time. Local-first, privacy-focused growth tool.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0B0E14; /* Deep dark background */
+            color: #E2E8F0;
+        }
+
+        /* Custom Gradients */
+        .text-gradient {
+            background: linear-gradient(135deg, #FFB020 0%, #F59E0B 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .text-gradient-purple {
+            background: linear-gradient(135deg, #C084FC 0%, #A855F7 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .bg-gradient-primary {
+            background: linear-gradient(135deg, #FFB020 0%, #EA580C 100%);
+        }
+
+        .glass-panel {
+            background: rgba(15, 20, 25, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* The Glowing Dot Logo */
+        .logo-dot {
+            width: 16px;
+            height: 16px;
+            background-color: #f59e0b;
+            border-radius: 50%;
+            box-shadow: 0 0 12px #f59e0b;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #0f1419;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+
+        /* UI Card Specifics */
+        .ui-card-bg {
+            background-color: #16181c;
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-orange-500 selection:text-white overflow-x-hidden">
+
+    <!-- Navigation -->
+    <nav class="fixed w-full z-50 glass-panel">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-3">
+                    <div class="logo-dot"></div>
+                    <span class="font-bold text-xl tracking-tight text-white uppercase">Amendoa</span>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-8">
+                        <a href="#how-it-works" class="hover:text-orange-400 transition-colors px-3 py-2 rounded-md text-sm font-medium">How it Works</a>
+                        <a href="#features" class="hover:text-orange-400 transition-colors px-3 py-2 rounded-md text-sm font-medium">Features</a>
+                        <a href="#privacy" class="hover:text-orange-400 transition-colors px-3 py-2 rounded-md text-sm font-medium">Privacy</a>
+                    </div>
+                </div>
+                <div>
+                    <a href="#" class="bg-white text-slate-900 hover:bg-orange-50 transition-colors px-5 py-2 rounded-full text-sm font-bold shadow-lg shadow-white/10">
+                        Get Extension
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <div class="relative pt-32 pb-20 sm:pt-40 sm:pb-24 overflow-hidden">
+        <!-- Background Elements -->
+        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-7xl pointer-events-none">
+            <div class="absolute top-20 left-20 w-72 h-72 bg-orange-500/10 rounded-full blur-[100px]"></div>
+            <div class="absolute bottom-20 right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-[100px]"></div>
+        </div>
+
+        <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center text-center">
+
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 mb-8 animate-fade-in-up">
+                <span class="relative flex h-2 w-2">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                <span class="text-orange-400 text-xs font-semibold tracking-wide uppercase">Public Beta Live</span>
+            </div>
+
+            <h1 class="text-5xl md:text-7xl font-extrabold tracking-tight mb-6 leading-tight">
+                Stop Scrolling. <br class="hidden md:block" />
+                <span class="text-gradient">Start Targeting.</span>
+            </h1>
+
+            <p class="mt-4 max-w-2xl text-xl text-slate-400 mb-8">
+                Amendoa surfaces high-value reply opportunities on X in real-time. We score every tweet in your feed so you never miss a viral moment.
+            </p>
+
+            <!-- Social Proof (Generated Avatars) -->
+            <div class="flex items-center gap-4 mb-10 bg-white/5 px-4 py-2 rounded-full border border-white/10 backdrop-blur-sm">
+                <div class="flex -space-x-3">
+                    <!-- Avatar 1: Real Person -->
+                    <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=64&h=64" alt="User" class="w-8 h-8 rounded-full border-2 border-[#0B0E14] object-cover" />
+                    <!-- Avatar 2: Illustration -->
+                    <img src="https://api.dicebear.com/9.x/avataaars/svg?seed=Felix" alt="User" class="w-8 h-8 rounded-full border-2 border-[#0B0E14] bg-slate-700" />
+                    <!-- Avatar 3: Real Person -->
+                    <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=64&h=64" alt="User" class="w-8 h-8 rounded-full border-2 border-[#0B0E14] object-cover" />
+                    <!-- Avatar 4: Illustration -->
+                    <img src="https://api.dicebear.com/9.x/notionists/svg?seed=Mila" alt="User" class="w-8 h-8 rounded-full border-2 border-[#0B0E14] bg-indigo-900" />
+                </div>
+                <span class="text-sm text-slate-300">Joined by <span class="text-white font-bold">80+ founders</span> building in public</span>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-4 mb-16 w-full sm:w-auto">
+                <a href="#" class="group relative flex items-center justify-center gap-3 bg-gradient-primary hover:brightness-110 transition-all text-white px-8 py-4 rounded-xl font-bold text-lg shadow-xl shadow-orange-500/20 w-full sm:w-auto">
+                    <i data-lucide="chrome" class="w-6 h-6"></i>
+                    <span>Add to Chrome</span>
+                    <span class="absolute -top-3 -right-3 bg-white text-orange-600 text-[10px] font-bold px-2 py-0.5 rounded-full border border-orange-100 shadow-sm">FREE</span>
+                </a>
+            </div>
+
+            <!-- UI Visualization (Revised to Match Screenshots) -->
+            <div class="relative w-full max-w-6xl mx-auto perspective-1000">
+                <div class="absolute -inset-1 bg-gradient-to-r from-orange-500 to-purple-600 rounded-2xl blur opacity-20"></div>
+                <div class="relative bg-black rounded-xl border border-slate-800 shadow-2xl overflow-hidden text-left transform transition-transform hover:scale-[1.01] duration-500 flex flex-col md:flex-row h-[600px]">
+
+                    <!-- LEFT: THE FEED -->
+                    <div class="flex-1 bg-black border-r border-slate-800 relative hidden md:block">
+                        <!-- Feed Header -->
+                        <div class="sticky top-0 bg-black/80 backdrop-blur z-10 border-b border-slate-800 flex justify-around text-sm font-medium pt-3 pb-0">
+                            <div class="px-4 pb-3 text-white border-b-4 border-blue-500 relative top-[1px]">For you</div>
+                            <div class="px-4 pb-3 text-slate-500 hover:bg-slate-900/50">Following</div>
+                        </div>
+
+                        <!-- Tweet 1 (High Value) -->
+                        <div class="p-4 border-b border-slate-800 hover:bg-white/[0.03] transition-colors">
+                            <div class="flex gap-3">
+                                <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center flex-shrink-0 border border-slate-700">
+                                    <i data-lucide="user" class="w-5 h-5 text-slate-400"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <div class="flex items-center gap-1">
+                                            <span class="font-bold text-white text-[15px]">Alex Lieberman</span>
+                                            <i data-lucide="badge-check" class="w-4 h-4 text-blue-400 fill-blue-400 text-white"></i>
+                                            <span class="text-slate-500 text-[15px]">@businessbarista · 17m</span>
+
+                                            <!-- THE INDICATOR (MATCHING SCREENSHOT) -->
+                                            <div class="ml-2 flex items-center gap-1 bg-[#00BA7C] text-white px-1.5 py-0.5 rounded-md text-xs font-bold leading-none">
+                                                <i data-lucide="check" class="w-3 h-3 stroke-[3]"></i> 47
+                                            </div>
+                                        </div>
+                                        <i data-lucide="more-horizontal" class="w-4 h-4 text-slate-500"></i>
+                                    </div>
+                                    <p class="text-white text-[15px] leading-normal mb-3">
+                                        What I learned in business today (pt. 2)...<br><br>
+                                        1) One of the best ways to build a well-oiled machine is to always be slightly understaffed.
+                                    </p>
+                                    <!-- Tweet Actions -->
+                                    <div class="flex justify-between text-slate-500 max-w-md">
+                                        <div class="flex items-center gap-1 group cursor-pointer hover:text-blue-400"><i data-lucide="message-circle" class="w-4 h-4 group-hover:bg-blue-500/10 rounded-full p-px box-content"></i> <span class="text-xs">1</span></div>
+                                        <div class="flex items-center gap-1 group cursor-pointer hover:text-green-400"><i data-lucide="repeat" class="w-4 h-4 group-hover:bg-green-500/10 rounded-full p-px box-content"></i> <span class="text-xs">1</span></div>
+                                        <div class="flex items-center gap-1 group cursor-pointer hover:text-pink-400"><i data-lucide="heart" class="w-4 h-4 group-hover:bg-pink-500/10 rounded-full p-px box-content"></i> <span class="text-xs">7</span></div>
+                                        <div class="flex items-center gap-1 group cursor-pointer hover:text-blue-400"><i data-lucide="bar-chart-2" class="w-4 h-4 group-hover:bg-blue-500/10 rounded-full p-px box-content"></i> <span class="text-xs">823</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                         <!-- Tweet 2 (Mid Value) -->
+                         <div class="p-4 border-b border-slate-800 hover:bg-white/[0.03] transition-colors">
+                            <div class="flex gap-3">
+                                <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center flex-shrink-0 border border-slate-700">
+                                    <i data-lucide="user" class="w-5 h-5 text-slate-400"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <div class="flex items-center gap-1">
+                                            <span class="font-bold text-white text-[15px]">Kate Bour</span>
+                                            <i data-lucide="badge-check" class="w-4 h-4 text-blue-400 fill-blue-400 text-white"></i>
+                                            <span class="text-slate-500 text-[15px]">@katebour · 55m</span>
+
+                                            <!-- THE INDICATOR (Mid) -->
+                                            <div class="ml-2 flex items-center gap-1 bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded-md text-xs font-bold leading-none border border-slate-600">
+                                                ~ 33
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <p class="text-white text-[15px] leading-normal mb-3">
+                                        Your new product's message needs to work on old emotions. Target buyers may read your...
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT: THE HUD (Matching Screenshots) -->
+                    <div class="w-full md:w-[400px] bg-[#000000] border-l border-slate-800 flex flex-col relative z-20">
+                        <!-- HUD Header -->
+                        <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-black">
+                            <div>
+                                <h3 class="font-bold text-white text-base">Reply Opportunities</h3>
+                                <p class="text-xs text-slate-500">Fresh tweets worth replying to</p>
+                            </div>
+                            <i data-lucide="rotate-cw" class="w-4 h-4 text-slate-500 cursor-pointer hover:text-white"></i>
+                        </div>
+
+                        <!-- Card List -->
+                        <div class="flex-1 p-3 space-y-3 overflow-y-auto custom-scrollbar bg-black">
+
+                            <!-- Opportunity Card 1 -->
+                            <div class="bg-[#16181c] rounded-xl p-3 border border-slate-800 hover:border-slate-700 transition-all">
+                                <!-- Top Row: Score Badge + Name + Time -->
+                                <div class="flex items-start justify-between mb-3">
+                                    <div class="flex items-center gap-3">
+                                        <!-- Score Badge -->
+                                        <div class="flex items-center gap-1 bg-[#32230b] border border-[#5c4014] text-[#f59e0b] px-2 py-1 rounded text-sm font-bold">
+                                            <i data-lucide="zap" class="w-3 h-3 fill-current"></i> 72
+                                        </div>
+                                        <!-- Name -->
+                                        <div>
+                                            <div class="flex items-center gap-1">
+                                                <span class="text-white font-bold text-sm">@luna_virtuals</span>
+                                                <i data-lucide="badge-check" class="w-3 h-3 text-blue-400 fill-blue-400"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <span class="text-slate-500 text-xs flex items-center gap-1"><i data-lucide="clock" class="w-3 h-3"></i> 14m</span>
+                                </div>
+
+                                <!-- Content Preview -->
+                                <p class="text-slate-300 text-sm mb-4 line-clamp-2">
+                                    Wow! $300,000 USDC subsidy depleted in 10 days! 🔥 We've just added another $500,000...
+                                </p>
+
+                                <!-- Bottom Row: Stats + Actions -->
+                                <div class="flex items-center justify-between">
+                                    <!-- Stats -->
+                                    <div class="flex items-center gap-3 text-xs text-slate-500">
+                                        <span class="flex items-center gap-1"><i data-lucide="users" class="w-3 h-3"></i> 51.7K</span>
+                                        <span class="flex items-center gap-1"><i data-lucide="message-circle" class="w-3 h-3"></i> 0</span>
+                                        <span class="flex items-center gap-1"><i data-lucide="heart" class="w-3 h-3"></i> 1</span>
+                                    </div>
+                                    <!-- Actions -->
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-[10px] font-bold text-[#00BA7C] border border-[#00BA7C] px-1.5 py-0.5 rounded bg-[#00ba7c1a]">FIRST</span>
+                                        <button class="text-xs text-[#f59e0b] border border-[#f59e0b] px-3 py-1.5 rounded-lg hover:bg-[#f59e0b1a] transition-colors flex items-center gap-1 font-medium">
+                                            <i data-lucide="external-link" class="w-3 h-3"></i> Reply
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                             <!-- Opportunity Card 2 -->
+                             <div class="bg-[#16181c] rounded-xl p-3 border border-slate-800 hover:border-slate-700 transition-all">
+                                <div class="flex items-start justify-between mb-3">
+                                    <div class="flex items-center gap-3">
+                                        <div class="flex items-center gap-1 bg-[#32230b] border border-[#5c4014] text-[#f59e0b] px-2 py-1 rounded text-sm font-bold">
+                                            <i data-lucide="zap" class="w-3 h-3 fill-current"></i> 69
+                                        </div>
+                                        <div>
+                                            <div class="flex items-center gap-1">
+                                                <span class="text-white font-bold text-sm">@remindme</span>
+                                                <i data-lucide="badge-check" class="w-3 h-3 text-blue-400 fill-blue-400"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <span class="text-slate-500 text-xs flex items-center gap-1"><i data-lucide="clock" class="w-3 h-3"></i> 14m</span>
+                                </div>
+                                <p class="text-slate-300 text-sm mb-4 line-clamp-2">
+                                    She's my daughter btw 🤓 https://t.co/F5QKs6AvRY
+                                </p>
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-3 text-xs text-slate-500">
+                                        <span class="flex items-center gap-1"><i data-lucide="users" class="w-3 h-3"></i> 525K</span>
+                                        <span class="flex items-center gap-1"><i data-lucide="message-circle" class="w-3 h-3"></i> 2</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-[10px] font-bold text-[#1D9BF0] border border-[#1D9BF0] px-1.5 py-0.5 rounded bg-[#1d9bf01a]">EARLY</span>
+                                        <button class="text-xs text-[#f59e0b] border border-[#f59e0b] px-3 py-1.5 rounded-lg hover:bg-[#f59e0b1a] transition-colors flex items-center gap-1 font-medium">
+                                            <i data-lucide="external-link" class="w-3 h-3"></i> Reply
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!-- GAMIFICATION SECTION (Bottom Panel) -->
+                        <div class="p-4 border-t border-slate-800 bg-[#16181c] space-y-4">
+                            <!-- Rank Info -->
+                            <div class="flex justify-between items-start">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-2xl">👀</span>
+                                    <div>
+                                        <div class="text-white font-bold text-base">Lurker I</div>
+                                        <div class="text-xs text-slate-500">402 XP total</div>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-[#00BA7C] font-bold text-lg">+0</div>
+                                    <div class="text-[10px] text-slate-500 uppercase tracking-wider">TODAY</div>
+                                </div>
+                            </div>
+
+                            <!-- Pink Progress Bar -->
+                            <div class="space-y-1">
+                                <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                                    <div class="h-full bg-gradient-to-r from-[#EC4899] to-[#EC4899] w-[65%] shadow-[0_0_10px_rgba(236,72,153,0.5)]"></div>
+                                </div>
+                                <div class="text-xs text-slate-500">98 XP to next rank</div>
+                            </div>
+
+                            <!-- Streak Warning -->
+                            <div class="bg-[#1f1a14] rounded-lg p-2.5 flex items-center justify-between border border-transparent">
+                                <div class="flex items-center gap-2.5">
+                                    <i data-lucide="triangle-alert" class="w-4 h-4 text-[#f59e0b] fill-[#f59e0b]"></i>
+                                    <div>
+                                        <div class="text-[#f59e0b] text-xs font-bold">9 day streak</div>
+                                        <div class="text-slate-400 text-[10px]">Do 1 reply or post to keep it!</div>
+                                    </div>
+                                </div>
+                                <span class="bg-[#5c4014] text-[#f59e0b] text-xs font-bold px-2 py-0.5 rounded-full">1.25x</span>
+                            </div>
+
+                            <!-- Daily Goals -->
+                            <div class="space-y-2 pt-1">
+                                <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Daily Goals</div>
+                                <!-- Replies Goal -->
+                                <div class="flex items-center text-xs">
+                                    <div class="w-20 text-slate-300 flex items-center gap-1.5"><i data-lucide="message-circle" class="w-3 h-3"></i> Replies</div>
+                                    <div class="flex-1 h-1.5 bg-slate-800 rounded-full mx-2 overflow-hidden">
+                                        <div class="h-full bg-slate-600 w-[0%]"></div>
+                                    </div>
+                                    <div class="text-slate-400 w-8 text-right">0/25</div>
+                                </div>
+                                <!-- Posts Goal -->
+                                <div class="flex items-center text-xs">
+                                    <div class="w-20 text-slate-300 flex items-center gap-1.5"><i data-lucide="pen-tool" class="w-3 h-3"></i> Posts</div>
+                                    <div class="flex-1 h-1.5 bg-slate-800 rounded-full mx-2 overflow-hidden">
+                                        <div class="h-full bg-slate-600 w-[0%]"></div>
+                                    </div>
+                                    <div class="text-slate-400 w-8 text-right">0/3</div>
+                                </div>
+                            </div>
+
+                            <div class="text-center text-[10px] text-slate-500 pt-1">1 reply or post = streak safe</div>
+
+                            <!-- Download Button -->
+                            <button class="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:brightness-110 text-white font-bold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-all">
+                                <i data-lucide="share-2" class="w-4 h-4"></i> Download Stats Image
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-8 flex items-center gap-2 text-slate-500 text-sm">
+                <i data-lucide="shield-check" class="w-4 h-4 text-green-500"></i>
+                <span>100% Local Processing. No data leaves your browser.</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- The Formula Section -->
+    <section id="how-it-works" class="py-20 bg-[#0B0E14] border-t border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4">The Engagement Algorithm</h2>
+                <p class="text-slate-400 max-w-2xl mx-auto">We don't guess. We calculate the ROI of every tweet before you even read it.</p>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-4 items-center justify-center max-w-4xl mx-auto">
+
+                <!-- Variable 1 -->
+                <div class="bg-slate-900 p-6 rounded-xl border border-slate-800 text-center relative">
+                    <div class="text-4xl mb-2">📡</div>
+                    <h3 class="text-lg font-bold text-white">Reach</h3>
+                    <p class="text-sm text-slate-400 mt-2">Does the author have an audience? (Titan, Star, or Peer)</p>
+                    <div class="absolute -right-6 top-1/2 -translate-y-1/2 hidden md:block text-slate-600 text-2xl font-bold">×</div>
+                </div>
+
+                <!-- Variable 2 -->
+                <div class="bg-slate-900 p-6 rounded-xl border border-slate-800 text-center relative">
+                    <div class="text-4xl mb-2">⏰</div>
+                    <h3 class="text-lg font-bold text-white">Freshness</h3>
+                    <p class="text-sm text-slate-400 mt-2">Is the tweet <15 mins old? (The "Golden Window")</p>
+                    <div class="absolute -right-6 top-1/2 -translate-y-1/2 hidden md:block text-slate-600 text-2xl font-bold">×</div>
+                </div>
+
+                <!-- Variable 3 -->
+                <div class="bg-slate-900 p-6 rounded-xl border border-slate-800 text-center">
+                    <div class="text-4xl mb-2">📉</div>
+                    <h3 class="text-lg font-bold text-white">Competition</h3>
+                    <p class="text-sm text-slate-400 mt-2">Are you first, early, or lost in a mob of 100 replies?</p>
+                </div>
+            </div>
+
+            <div class="text-center mt-12">
+                <div class="inline-flex items-center gap-3 bg-orange-500/10 border border-orange-500/30 rounded-full px-6 py-3">
+                    <span class="text-2xl">⚡</span>
+                    <span class="text-orange-400 font-bold text-lg">= Opportunity Score (0-100)</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Gamification Journey -->
+    <section class="py-20 relative overflow-hidden bg-slate-900/30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col md:flex-row items-center gap-12">
+                <div class="flex-1">
+                    <h2 class="text-3xl md:text-4xl font-bold mb-6">Build a habit, <br /><span class="text-gradient-purple">not just a streak.</span></h2>
+                    <p class="text-slate-400 mb-8 text-lg">
+                        Growing on X requires showing up every day. Amendoa turns the grind into a game. Level up your character by engaging with the community.
+                    </p>
+
+                    <!-- Journey Steps -->
+                    <div class="space-y-6 relative">
+                        <div class="absolute left-3 top-0 bottom-0 w-0.5 bg-slate-800"></div>
+
+                        <div class="relative pl-10">
+                            <div class="absolute left-0 w-6 h-6 rounded-full bg-slate-700 border-2 border-slate-900 flex items-center justify-center text-xs">1</div>
+                            <h4 class="text-white font-bold">Lurker</h4>
+                            <p class="text-sm text-slate-500">Where everyone starts. Your goal: Break the silence.</p>
+                        </div>
+                        <div class="relative pl-10">
+                            <div class="absolute left-0 w-6 h-6 rounded-full bg-purple-500 border-2 border-slate-900 flex items-center justify-center text-xs text-white">2</div>
+                            <h4 class="text-purple-400 font-bold">Reply Guy</h4>
+                            <p class="text-sm text-slate-500">Consistent daily engagement. You're showing up.</p>
+                        </div>
+                        <div class="relative pl-10 opacity-50">
+                            <div class="absolute left-0 w-6 h-6 rounded-full bg-slate-800 border-2 border-slate-900 flex items-center justify-center text-xs">3</div>
+                            <h4 class="text-white font-bold">Thought Leader</h4>
+                            <p class="text-sm text-slate-500">High impact replies that drive followers back to you.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Image Container -->
+                <div class="flex-1 w-full max-w-md">
+                     <!-- Recreated Share Card (Exactly Matching 4-Column Screenshot) -->
+                    <div class="bg-[#111621] rounded-2xl border border-slate-700 shadow-2xl p-6 relative">
+                         <!-- Logo -->
+                         <div class="flex items-center gap-3 mb-8">
+                            <div class="logo-dot"></div>
+                            <span class="font-bold text-white text-sm tracking-wider uppercase">Amendoa.App</span>
+                        </div>
+
+                        <!-- Center Content -->
+                        <div class="text-center mb-8">
+                            <div class="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">TODAY'S STATS</div>
+                            <div class="text-slate-400 text-xs mb-4">Thursday, Dec 11</div>
+
+                            <div class="flex items-center justify-center gap-3 mb-1">
+                                <span class="text-4xl">👀</span>
+                                <span class="text-5xl font-bold text-white tracking-tight">Lurker I</span>
+                            </div>
+                            <div class="text-slate-400 text-sm mb-6">Level</div>
+
+                            <!-- Progress Bar (Orange) -->
+                            <div class="w-full h-3 bg-[#1e293b] rounded-full mb-2">
+                                <div class="h-full bg-[#f59e0b] w-[80%] rounded-full shadow-[0_0_10px_rgba(245,158,11,0.5)]"></div>
+                            </div>
+                            <div class="text-xs text-slate-400">402 XP • 98 to next level</div>
+                        </div>
+
+                        <!-- 4-Column Stats Grid -->
+                        <div class="grid grid-cols-4 gap-2">
+                            <!-- XP -->
+                            <div class="bg-[#1e2330] rounded-xl p-2 text-center border border-white/5 flex flex-col justify-center h-24">
+                                <div class="text-[#a78bfa] font-bold text-2xl">+28</div>
+                                <div class="text-[9px] text-slate-500 uppercase font-bold mt-1 tracking-wide">XP Today</div>
+                            </div>
+                            <!-- Posts -->
+                            <div class="bg-[#1e2330] rounded-xl p-2 text-center border border-white/5 flex flex-col justify-center h-24">
+                                <div class="text-[#60a5fa] font-bold text-2xl">1</div>
+                                <div class="text-[9px] text-slate-500 uppercase font-bold mt-1 tracking-wide">Posts</div>
+                            </div>
+                            <!-- Replies -->
+                            <div class="bg-[#1e2330] rounded-xl p-2 text-center border border-white/5 flex flex-col justify-center h-24">
+                                <div class="text-[#fbbf24] font-bold text-2xl">3</div>
+                                <div class="text-[9px] text-slate-500 uppercase font-bold mt-1 tracking-wide">Replies</div>
+                            </div>
+                            <!-- Streak -->
+                            <div class="bg-[#1e2330] rounded-xl p-2 text-center border border-white/5 flex flex-col justify-center h-24 relative overflow-visible">
+                                <div class="text-[#ef4444] font-bold text-2xl">6</div>
+                                <div class="text-[9px] text-slate-500 uppercase font-bold mt-1 tracking-wide">Day Streak</div>
+                                <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#451a03] border border-[#f59e0b] text-[#f59e0b] text-[8px] font-bold px-1.5 py-0.5 rounded shadow-lg whitespace-nowrap">
+                                    1.1x XP
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Privacy Section -->
+    <section id="privacy" class="py-20 bg-[#0B0E14] border-t border-slate-800">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 border border-green-500/20 mb-6">
+                <i data-lucide="shield-check" class="w-8 h-8 text-green-500"></i>
+            </div>
+            <h2 class="text-3xl md:text-4xl font-bold mb-4">100% Local. Zero Tracking.</h2>
+            <p class="text-slate-400 text-lg mb-8 max-w-2xl mx-auto">
+                Amendoa runs entirely in your browser. Your data never leaves your machine. No accounts, no servers, no analytics. Just you and your feed.
+            </p>
+            <div class="grid md:grid-cols-3 gap-6 text-left">
+                <div class="bg-slate-900/50 p-5 rounded-xl border border-slate-800">
+                    <i data-lucide="database" class="w-6 h-6 text-green-500 mb-3"></i>
+                    <h4 class="text-white font-bold mb-1">Local Storage Only</h4>
+                    <p class="text-sm text-slate-500">All data stored in IndexedDB on your device</p>
+                </div>
+                <div class="bg-slate-900/50 p-5 rounded-xl border border-slate-800">
+                    <i data-lucide="wifi-off" class="w-6 h-6 text-green-500 mb-3"></i>
+                    <h4 class="text-white font-bold mb-1">No External Requests</h4>
+                    <p class="text-sm text-slate-500">Zero network calls to our servers. Ever.</p>
+                </div>
+                <div class="bg-slate-900/50 p-5 rounded-xl border border-slate-800">
+                    <i data-lucide="eye-off" class="w-6 h-6 text-green-500 mb-3"></i>
+                    <h4 class="text-white font-bold mb-1">No Analytics</h4>
+                    <p class="text-sm text-slate-500">We don't track usage, clicks, or behavior</p>
+                </div>
+            </div>
+            <a href="privacy.html" class="inline-block mt-8 text-slate-500 hover:text-white text-sm underline underline-offset-4">Read our Privacy Policy →</a>
+        </div>
+    </section>
+
+    <!-- Pricing / Install CTA -->
+    <section class="py-24 text-center">
+        <div class="max-w-3xl mx-auto px-4">
+            <h2 class="text-4xl font-bold mb-6">Ready to stop guessing?</h2>
+            <p class="text-slate-400 text-lg mb-10">
+                Install Amendoa now and see your feed in a completely new way.
+            </p>
+            <div class="flex flex-col items-center gap-4">
+                <a href="#" class="group relative flex items-center justify-center gap-3 bg-white text-slate-900 hover:bg-orange-50 transition-all px-10 py-5 rounded-full font-bold text-xl shadow-2xl shadow-orange-500/20 w-full sm:w-auto">
+                    <i data-lucide="chrome" class="w-6 h-6 text-slate-900"></i>
+                    <span>Add to Chrome - It's Free</span>
+                </a>
+                <div class="flex items-center gap-4 text-xs text-slate-600 mt-4">
+                    <span>v1.0.0</span>
+                    <span>•</span>
+                    <span>Chrome / Brave / Edge</span>
+                    <span>•</span>
+                    <span>Manifest V3</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800 py-12 bg-slate-900">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
+            <div class="flex items-center gap-3">
+                <div class="logo-dot"></div>
+                <span class="font-bold text-slate-300">Amendoa</span>
+            </div>
+            <div class="flex gap-8 text-sm text-slate-500">
+                <a href="privacy.html" class="hover:text-white transition-colors">Privacy Policy</a>
+                <a href="https://github.com/pedroguedes/Amendoa/issues" class="hover:text-white transition-colors">Support</a>
+                <a href="https://x.com/pedrogedge" class="hover:text-white transition-colors">Twitter</a>
+            </div>
+            <div class="text-sm text-slate-600">
+                © 2025 Amendoa. All rights reserved.
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

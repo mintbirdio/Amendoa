@@ -24,6 +24,7 @@ const DEFAULT_STATUS: GamificationStatus = {
     longestStreak: 0,
     rankInfo: {
         tier: 'Lurker',
+        tierNumber: 1,
         emoji: '👀',
         rank: 'I',
         display: '👀 Lurker I',
@@ -36,6 +37,8 @@ const DEFAULT_STATUS: GamificationStatus = {
     todayPosts: 0,
     todayXP: 0,
     streakSafe: false,
+    repliesGoalMet: false,
+    postsGoalMet: false,
     repliesNeeded: DAILY_REQUIREMENTS.minReplies,
     postsNeeded: DAILY_REQUIREMENTS.minPosts,
     todayReplyBacks: 0,
@@ -66,16 +69,26 @@ export function useGamificationStatus(): GamificationStatus {
         []
     );
 
-    // Calculate derived status
-    if (!userStats || !todayProgress) {
+    // If user stats don't exist yet, return defaults
+    if (!userStats) {
         return DEFAULT_STATUS;
     }
 
+    // User stats exist - use them even if today's progress doesn't exist yet
+    // Today's progress being empty just means no activity today (which is fine)
     const multiplier = getStreakMultiplier(userStats.currentStreak);
     const rankInfo = getTierAndRank(userStats.totalXP);
 
-    const repliesNeeded = Math.max(0, DAILY_REQUIREMENTS.minReplies - todayProgress.repliesSent);
-    const postsNeeded = Math.max(0, DAILY_REQUIREMENTS.minPosts - todayProgress.postsPublished);
+    // Use today's progress if it exists, otherwise use zeros for daily counters
+    const todayReplies = todayProgress?.repliesSent ?? 0;
+    const todayPosts = todayProgress?.postsPublished ?? 0;
+    const todayXP = todayProgress?.totalXPEarned ?? 0;
+
+    const repliesNeeded = Math.max(0, DAILY_REQUIREMENTS.minReplies - todayReplies);
+    const postsNeeded = Math.max(0, DAILY_REQUIREMENTS.minPosts - todayPosts);
+
+    // streakSafe = any activity today (not goals)
+    const hasActivity = todayReplies > 0 || todayPosts > 0;
 
     return {
         totalXP: userStats.totalXP,
@@ -84,16 +97,18 @@ export function useGamificationStatus(): GamificationStatus {
         rankInfo,
         multiplier,
 
-        todayReplies: todayProgress.repliesSent,
-        todayPosts: todayProgress.postsPublished,
-        todayXP: todayProgress.totalXPEarned,
-        streakSafe: todayProgress.streakMaintained,
+        todayReplies,
+        todayPosts,
+        todayXP,
+        streakSafe: hasActivity,
+        repliesGoalMet: todayReplies >= DAILY_REQUIREMENTS.minReplies,
+        postsGoalMet: todayPosts >= DAILY_REQUIREMENTS.minPosts,
         repliesNeeded,
         postsNeeded,
 
-        todayReplyBacks: todayProgress.replyBacksReceived,
-        todayAuthorLikes: todayProgress.authorLikesReceived,
-        todayNewFollowers: todayProgress.newFollowers,
+        todayReplyBacks: todayProgress?.replyBacksReceived ?? 0,
+        todayAuthorLikes: todayProgress?.authorLikesReceived ?? 0,
+        todayNewFollowers: todayProgress?.newFollowers ?? 0,
 
         totalReplies: userStats.totalReplies,
         totalPosts: userStats.totalPosts,

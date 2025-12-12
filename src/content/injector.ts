@@ -50,7 +50,11 @@
             // UserTweets endpoint (profile page)
             (data.data && data.data.user && data.data.user.result && data.data.user.result.timeline) ||
             // TweetDetail
-            (data.data && data.data.tweetResult)
+            (data.data && data.data.tweetResult) ||
+            // Community Timeline
+            (data.data && data.data.communityResults && data.data.communityResults.result) ||
+            // Community Tweets Timeline (alternative structure)
+            (data.data && data.data.community && data.data.community.community_timeline)
         );
         return hasData;
     };
@@ -84,50 +88,137 @@
             inReplyTo?: string;
         }> = [];
 
+        // Helper to extract tweet data from various structures
+        const extractTweetInfo = (tweetResult: any): { fromHandle: string; content: string; tweetId: string; inReplyTo?: string } | null => {
+            try {
+                // Handle TweetWithVisibilityResults wrapper
+                const tweet = tweetResult?.tweet || tweetResult;
+                if (!tweet) return null;
+
+                const legacy = tweet.legacy;
+                if (!legacy) return null;
+
+                // Get user info from various paths
+                const user = tweet.core?.user_results?.result ||
+                            tweet.user_results?.result ||
+                            tweet.author;
+
+                const userLegacy = user?.legacy || user;
+                const fromHandle = userLegacy?.screen_name || '';
+                const content = legacy.full_text || '';
+                const tweetId = tweet.rest_id || legacy.id_str || '';
+                const inReplyTo = legacy.in_reply_to_status_id_str;
+
+                if (fromHandle && tweetId) {
+                    return { fromHandle, content, tweetId, inReplyTo };
+                }
+            } catch (e) {
+                // Ignore extraction errors
+            }
+            return null;
+        };
+
         try {
-            // Navigate to notifications timeline
+            // Try multiple paths to find instructions
             let instructions: any[] = [];
 
+            // Path 1: Standard notifications timeline
             if (data.data?.viewer?.user_results?.result?.timeline?.timeline?.instructions) {
                 instructions = data.data.viewer.user_results.result.timeline.timeline.instructions;
             }
+            // Path 2: Alternative structure
+            else if (data.data?.viewer?.timeline?.timeline?.instructions) {
+                instructions = data.data.viewer.timeline.timeline.instructions;
+            }
+            // Path 3: Direct notifications
+            else if (data.data?.notifications?.timeline?.instructions) {
+                instructions = data.data.notifications.timeline.instructions;
+            }
+            // Path 4: Notifications tab endpoint (newer structure)
+            else if (data.data?.viewer?.notifications_timeline?.timeline?.instructions) {
+                instructions = data.data.viewer.notifications_timeline.timeline.instructions;
+            }
+            // Path 5: notification_all endpoint
+            else if (data.data?.notification_all?.timeline?.instructions) {
+                instructions = data.data.notification_all.timeline.instructions;
+            }
+
+            // Debug: Log what we found and the data structure keys
+            if (instructions.length === 0 && data.data) {
+                console.error('Amendoa: No notification instructions found. Data keys:', Object.keys(data.data));
+            } else {
+                console.error('Amendoa: Notification instructions found:', instructions.length);
+            }
 
             for (const instruction of instructions) {
-                const entries = instruction.entries || [];
+                // Handle both 'entries' and 'addEntries' structures
+                const entries = instruction.entries || instruction.addEntries?.entries || [];
+
                 for (const entry of entries) {
-                    // Look for notification entries
                     const content = entry.content;
                     if (!content) continue;
 
-                    // Check for notification with tweet
-                    const notification = content.itemContent?.notification_context?.notification ||
-                                        content.notification;
+                    // Handle TimelineTimelineItem entries (individual notifications)
+                    if (content.itemContent) {
+                        const itemContent = content.itemContent;
 
-                    if (notification) {
-                        // Extract the notification type
-                        const notifType = notification.notificationType || notification.type;
+                        // Check notification context for type
+                        const notification = itemContent.notification_context?.notification ||
+                                           itemContent.notification;
 
-                        // We care about reply notifications
-                        if (notifType === 'notification_reply' || notifType === 'reply') {
-                            const tweet = content.itemContent?.tweet_results?.result ||
-                                         notification.tweet?.result;
+                        // Extract notification type from various paths
+                        const notifType = notification?.notificationType ||
+                                         notification?.type ||
+                                         itemContent.notificationType ||
+                                         entry.entryId?.split('-')[0]; // e.g., "notification-reply-xxx"
 
-                            if (tweet?.legacy && tweet?.core?.user_results?.result) {
-                                const user = tweet.core.user_results.result;
-                                const userLegacy = user.legacy || {};
-                                const tweetLegacy = tweet.legacy;
+                        // Check for reply-related notification types
+                        const isReply = notifType === 'notification_reply' ||
+                                       notifType === 'reply' ||
+                                       notifType === 'Reply' ||
+                                       (typeof notifType === 'string' && notifType.toLowerCase().includes('reply'));
 
-                                const fromHandle = userLegacy.screen_name || user.screen_name || '';
-                                const tweetContent = tweetLegacy.full_text || '';
-                                const tweetId = tweet.rest_id || tweetLegacy.id_str;
-                                const inReplyTo = tweetLegacy.in_reply_to_status_id_str;
+                        if (isReply) {
+                            // Try to get tweet from various locations
+                            const tweetResult = itemContent.tweet_results?.result ||
+                                               notification?.tweet?.result ||
+                                               itemContent.tweet?.result;
 
-                                if (fromHandle && tweetId) {
+                            const tweetInfo = extractTweetInfo(tweetResult);
+                            if (tweetInfo) {
+                                console.error('Amendoa: 📩 Found reply notification from @' + tweetInfo.fromHandle);
+                                results.push({
+                                    fromHandle: tweetInfo.fromHandle,
+                                    content: tweetInfo.content,
+                                    threadUrl: `https://twitter.com/${tweetInfo.fromHandle}/status/${tweetInfo.tweetId}`,
+                                    inReplyTo: tweetInfo.inReplyTo
+                                });
+                            }
+                        }
+                    }
+
+                    // Handle TimelineTimelineModule entries (grouped notifications)
+                    if (content.items) {
+                        for (const item of content.items) {
+                            const itemContent = item.item?.itemContent;
+                            if (!itemContent) continue;
+
+                            const notification = itemContent.notification_context?.notification;
+                            const notifType = notification?.notificationType || notification?.type;
+
+                            const isReply = notifType === 'notification_reply' ||
+                                           notifType === 'reply' ||
+                                           (typeof notifType === 'string' && notifType.toLowerCase().includes('reply'));
+
+                            if (isReply) {
+                                const tweetResult = itemContent.tweet_results?.result;
+                                const tweetInfo = extractTweetInfo(tweetResult);
+                                if (tweetInfo) {
                                     results.push({
-                                        fromHandle,
-                                        content: tweetContent,
-                                        threadUrl: `https://twitter.com/${fromHandle}/status/${tweetId}`,
-                                        inReplyTo
+                                        fromHandle: tweetInfo.fromHandle,
+                                        content: tweetInfo.content,
+                                        threadUrl: `https://twitter.com/${tweetInfo.fromHandle}/status/${tweetInfo.tweetId}`,
+                                        inReplyTo: tweetInfo.inReplyTo
                                     });
                                 }
                             }
@@ -139,6 +230,7 @@
             console.error('Amendoa: Error extracting notifications', e);
         }
 
+        console.error('Amendoa: Extracted', results.length, 'reply notifications');
         return results;
     };
 
@@ -279,5 +371,5 @@
         return response;
     };
 
-    console.log('Amendoa: Network interceptors active');
+    console.log('[Amendoa] Network interceptors active');
 })();

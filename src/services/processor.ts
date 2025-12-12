@@ -1,5 +1,5 @@
 /**
- * Data Processor for Amendoa v2
+ * Data Processor for Amendoa
  *
  * Processes intercepted Twitter API data:
  * - Extracts tweets and author info
@@ -14,7 +14,6 @@ import {
     calculateOpportunityScore,
     type TweetData
 } from './scoreEngine';
-import { getTargetHandleSet, updateTargetProfile } from './targetManager';
 import { recordGamificationAction } from './gamification';
 
 // =============================================================================
@@ -37,6 +36,7 @@ interface ExtractedTweet {
     hasMedia: boolean;
     isThread: boolean;
     isReply: boolean;
+    isRetweet: boolean; // Pure RT (not QT) - reply would go to original author
 }
 
 // =============================================================================
@@ -50,14 +50,14 @@ const userIdToScreenName = new Map<string, string>();
  * Process intercepted Twitter API data
  */
 export async function processInterceptedData(url: string, data: any) {
-    console.log('[Amendoa v2] Processing data from:', url);
+    console.log('[Amendoa] Processing data from:', url);
 
     // First pass: Build user ID -> screen_name mapping from all users in response
     const mappingBefore = userIdToScreenName.size;
     buildUserMapping(data);
     const newMappings = userIdToScreenName.size - mappingBefore;
     if (newMappings > 0) {
-        console.log(`[Amendoa v2] Built user mapping: ${newMappings} new users (total: ${userIdToScreenName.size})`);
+        console.log(`[Amendoa] Built user mapping: ${newMappings} new users (total: ${userIdToScreenName.size})`);
     }
 
     const tweets: any[] = [];
@@ -127,6 +127,14 @@ export async function processInterceptedData(url: string, data: any) {
         if (data.data.list?.tweets_timeline?.timeline?.instructions) {
             tweets.push(...extractTweetsFromInstructions(data.data.list.tweets_timeline.timeline.instructions));
         }
+        // Community Timeline
+        if (data.data.communityResults?.result?.ranked_community_timeline?.timeline?.instructions) {
+            tweets.push(...extractTweetsFromInstructions(data.data.communityResults.result.ranked_community_timeline.timeline.instructions));
+        }
+        // Community Timeline (alternative structure)
+        if (data.data.community?.community_timeline?.timeline?.instructions) {
+            tweets.push(...extractTweetsFromInstructions(data.data.community.community_timeline.timeline.instructions));
+        }
     }
 
     // Fallback for globalObjects structure
@@ -136,22 +144,18 @@ export async function processInterceptedData(url: string, data: any) {
         }
     }
 
-    console.log(`[Amendoa v2] Found ${tweets.length} tweets`);
+    console.log(`[Amendoa] Found ${tweets.length} tweets`);
 
-    // Get target handles for filtering
-    const targetHandles = await getTargetHandleSet();
-    console.log(`[Amendoa v2] Target handles:`, Array.from(targetHandles));
     const now = Date.now();
 
-    // Discovery pre-filter thresholds
-    // 24-hour window: X serves old content, but engagement still valuable
-    const DISCOVERY_MIN_FOLLOWERS = 1000;
-    const DISCOVERY_MAX_AGE_MINUTES = 24 * 60; // 24 hours - quality engagement > timing
-    const DISCOVERY_MAX_REPLIES = 500; // High threshold - viral tweets still worth engaging
+    // Filter thresholds - aligned with X growth playbook
+    // Target: accounts with reach, fresh tweets, low competition
+    const MIN_FOLLOWERS = 1000; // 1k+ ensures some reach value
+    const MAX_AGE_MINUTES = 60; // 1 hour - "be fast" for algorithm boost
+    const MAX_REPLIES = 50; // Low competition = better reply positioning
 
     let processedCount = 0;
-    let targetTweetCount = 0;
-    let discoveryTweetCount = 0;
+    let savedCount = 0;
 
     for (const tweet of tweets) {
         // Skip invalid tweets
@@ -166,59 +170,29 @@ export async function processInterceptedData(url: string, data: any) {
         processedCount++;
 
         const normalizedHandle = normalizeHandle(extracted.authorHandle);
-        const isTarget = targetHandles.has(normalizedHandle);
-
-        // Log every tweet author for debugging
-        if (processedCount <= 10) {
-            console.log(`[Amendoa v2] Tweet from @${normalizedHandle} - isTarget: ${isTarget}, followers: ${extracted.authorFollowers}`);
-        }
-
-        // For targets: always process
-        // For non-targets: apply Discovery pre-filter
         const tweetAgeMinutes = (now - extracted.postedAt) / 1000 / 60;
 
-        // Debug: Log why tweets fail discovery filter
-        if (!isTarget && processedCount <= 20) {
-            const reasons: string[] = [];
-            if (extracted.authorFollowers < DISCOVERY_MIN_FOLLOWERS) reasons.push(`followers=${extracted.authorFollowers}<${DISCOVERY_MIN_FOLLOWERS}`);
-            if (tweetAgeMinutes > DISCOVERY_MAX_AGE_MINUTES) reasons.push(`age=${tweetAgeMinutes.toFixed(1)}min>${DISCOVERY_MAX_AGE_MINUTES}`);
-            if (extracted.replies > DISCOVERY_MAX_REPLIES) reasons.push(`replies=${extracted.replies}>${DISCOVERY_MAX_REPLIES}`);
-            if (extracted.isReply) reasons.push('is_reply');
-
-            if (reasons.length > 0) {
-                console.log(`[Amendoa v2] Discovery skip @${normalizedHandle}: ${reasons.join(', ')}`);
-            } else {
-                console.log(`[Amendoa v2] Discovery PASS @${normalizedHandle}: ${extracted.authorFollowers} followers, ${tweetAgeMinutes.toFixed(1)}min old, ${extracted.replies} replies`);
-            }
+        // Debug: Log first few tweets
+        if (processedCount <= 5) {
+            console.log(`[Amendoa] Tweet from @${normalizedHandle}: ${extracted.authorFollowers} followers, ${tweetAgeMinutes.toFixed(0)}m old, ${extracted.replies} replies`);
         }
 
-        const passesDiscoveryFilter = !isTarget && (
-            extracted.authorFollowers >= DISCOVERY_MIN_FOLLOWERS &&
-            tweetAgeMinutes <= DISCOVERY_MAX_AGE_MINUTES &&
-            extracted.replies <= DISCOVERY_MAX_REPLIES &&
-            !extracted.isReply // Skip replies, we want original tweets
+        // Filter: accounts with reach, fresh tweets, low competition, original posts
+        const passesFilter = (
+            extracted.authorFollowers >= MIN_FOLLOWERS &&
+            tweetAgeMinutes <= MAX_AGE_MINUTES &&
+            extracted.replies <= MAX_REPLIES &&
+            !extracted.isReply && // Original posts only - higher visibility
+            !extracted.isRetweet // Skip pure RTs - reply goes to original author, not RTer
         );
 
-        // Skip if not a target and doesn't pass discovery filter
-        if (!isTarget && !passesDiscoveryFilter) {
+        if (!passesFilter) {
             continue;
         }
 
-        if (isTarget) {
-            targetTweetCount++;
+        savedCount++;
 
-            // Update target's profile data
-            await updateTargetProfile(normalizedHandle, {
-                displayName: extracted.authorDisplayName,
-                followerCount: extracted.authorFollowers,
-                followingCount: extracted.authorFollowing,
-                isPremium: extracted.authorIsPremium
-            });
-        } else {
-            discoveryTweetCount++;
-        }
-
-        // Calculate opportunity score for both targets and discovery
+        // Calculate opportunity score
         const tweetData: TweetData = {
             tweetId: extracted.tweetId,
             authorHandle: normalizedHandle,
@@ -229,7 +203,6 @@ export async function processInterceptedData(url: string, data: any) {
             views: extracted.views,
             isReply: extracted.isReply,
             isThread: extracted.isThread,
-            // Pass follower data for Discovery scoring
             authorFollowerCount: extracted.authorFollowers,
             authorIsPremium: extracted.authorIsPremium
         };
@@ -242,17 +215,13 @@ export async function processInterceptedData(url: string, data: any) {
         if (existingTweet) {
             // UPDATE existing tweet - preserve user interaction state, update metrics
             await db.tweetCache.update(extracted.tweetId, {
-                // Update engagement metrics (these change over time)
                 likes: extracted.likes,
                 retweets: extracted.retweets,
                 replies: extracted.replies,
                 views: extracted.views,
-                // Re-calculate score with fresh data
                 opportunityScore: scoreResult.score,
                 scoreBadge: scoreResult.badge,
-                // Update content if it changed (edits)
                 content: extracted.content,
-                // Keep: firstSeenAt, didReply, replyTimestamp, gotReplyBack
             });
         } else {
             // INSERT new tweet
@@ -274,8 +243,7 @@ export async function processInterceptedData(url: string, data: any) {
                 didReply: false,
                 replyTimestamp: null,
                 gotReplyBack: false,
-                // Discovery fields
-                isFromTarget: isTarget,
+                isFromTarget: false, // Legacy field - keeping for schema compatibility
                 authorFollowerCount: extracted.authorFollowers,
                 authorIsPremium: extracted.authorIsPremium
             };
@@ -283,31 +251,19 @@ export async function processInterceptedData(url: string, data: any) {
             await db.tweetCache.add(cacheEntry);
         }
 
-        // Emit event for badge injection (targets only for now)
-        if (isTarget) {
-            window.dispatchEvent(new CustomEvent('AMENDOA_TWEET_SCORED', {
-                detail: {
-                    tweetId: extracted.tweetId,
-                    score: scoreResult.score,
-                    badge: scoreResult.badge
-                }
-            }));
-        }
-
         // Log high-value opportunities
         if (scoreResult.score >= 60) {
-            const source = isTarget ? '🎯 Target' : '🔍 Discovery';
             console.log(
-                `[Amendoa v2] ${source}: @${normalizedHandle} (${extracted.authorFollowers} followers) - Score: ${scoreResult.score} (${scoreResult.badge})`
+                `[Amendoa] 🔥 @${normalizedHandle} (${extracted.authorFollowers} followers) - Score: ${scoreResult.score}`
             );
         }
     }
 
-    console.log(`[Amendoa v2] Processed ${processedCount} tweets: ${targetTweetCount} from targets, ${discoveryTweetCount} discovery`);
+    console.log(`[Amendoa] Processed ${processedCount} tweets, saved ${savedCount} opportunities`);
 
     // Emit batch completion event
     window.dispatchEvent(new CustomEvent('AMENDOA_TWEETS_PROCESSED', {
-        detail: { total: processedCount, fromTargets: targetTweetCount, discovery: discoveryTweetCount }
+        detail: { total: processedCount, saved: savedCount }
     }));
 }
 
@@ -425,13 +381,13 @@ function extractTweetData(tweet: any): ExtractedTweet | null {
                 const userId = userResult.rest_id || userResult.id_str;
                 if (userId && userIdToScreenName.has(userId)) {
                     authorHandle = userIdToScreenName.get(userId)!;
-                    console.log(`[Amendoa v2] Found screen_name via ID mapping: ${userId} -> ${authorHandle}`);
+                    console.log(`[Amendoa] Found screen_name via ID mapping: ${userId} -> ${authorHandle}`);
                 }
             }
 
             // Debug: Log full userResult structure if we still can't find screen_name
             if (!authorHandle) {
-                console.warn(`[Amendoa v2] Cannot find screen_name. Full userResult:`, JSON.stringify(userResult, null, 2).slice(0, 2000));
+                console.warn(`[Amendoa] Cannot find screen_name. Full userResult:`, JSON.stringify(userResult, null, 2).slice(0, 2000));
             }
         }
     }
@@ -477,15 +433,15 @@ function extractTweetData(tweet: any): ExtractedTweet | null {
 
     if (!authorHandle) {
         // Log the tweet structure for debugging (only first few)
-        console.warn(`[Amendoa v2] Failed to extract author for tweet ${tweetId}. Keys:`, Object.keys(actualTweet || {}));
+        console.warn(`[Amendoa] Failed to extract author for tweet ${tweetId}. Keys:`, Object.keys(actualTweet || {}));
         // Log core structure if it exists
         if (actualTweet.core) {
-            console.warn(`[Amendoa v2] core keys:`, Object.keys(actualTweet.core));
+            console.warn(`[Amendoa] core keys:`, Object.keys(actualTweet.core));
             if (actualTweet.core.user_results) {
-                console.warn(`[Amendoa v2] user_results keys:`, Object.keys(actualTweet.core.user_results));
+                console.warn(`[Amendoa] user_results keys:`, Object.keys(actualTweet.core.user_results));
                 if (actualTweet.core.user_results.result) {
-                    console.warn(`[Amendoa v2] result keys:`, Object.keys(actualTweet.core.user_results.result));
-                    console.warn(`[Amendoa v2] result.__typename:`, actualTweet.core.user_results.result.__typename);
+                    console.warn(`[Amendoa] result keys:`, Object.keys(actualTweet.core.user_results.result));
+                    console.warn(`[Amendoa] result.__typename:`, actualTweet.core.user_results.result.__typename);
                 }
             }
         }
@@ -528,6 +484,15 @@ function extractTweetData(tweet: any): ExtractedTweet | null {
         legacy.in_reply_to_screen_name?.toLowerCase() === authorHandle.toLowerCase()
     );
 
+    // Detect if this is a pure retweet (not a quote tweet)
+    // Pure RTs have retweeted_status_result but no quote text
+    // Quote tweets have quoted_status_result AND the retweeter's own content
+    const isRetweet = !!(
+        legacy.retweeted_status_result ||
+        actualTweet.legacy?.retweeted_status_result ||
+        (content.startsWith('RT @') && !actualTweet.quoted_status_result)
+    );
+
     return {
         tweetId,
         authorHandle,
@@ -543,7 +508,8 @@ function extractTweetData(tweet: any): ExtractedTweet | null {
         views,
         hasMedia,
         isThread,
-        isReply
+        isReply,
+        isRetweet
     };
 }
 
@@ -627,7 +593,7 @@ export async function trackOutgoingReply(
         await incrementDailyStat('firstResponderCount');
     }
 
-    console.log(`[Amendoa v2] Tracked reply to @${normalizedHandle}`);
+    console.log(`[Amendoa] Tracked reply to @${normalizedHandle}`);
 }
 
 /**
@@ -645,20 +611,34 @@ export async function trackIncomingReply(
     // Get target info if they're a target
     const target = await db.targetAccounts.get(normalizedHandle);
 
-    // Create or update conversation
-    const conversationId = `${normalizedHandle}-${Date.now()}`;
+    // Check for existing active conversation with this person
+    // Use handle-based ID for deduplication (one active convo per person)
+    const conversationId = `convo-${normalizedHandle}`;
 
-    await db.conversations.put({
-        id: conversationId,
-        otherPartyHandle: normalizedHandle,
-        otherPartyTier: target?.tier || null,
-        lastMessageFrom: 'them',
-        lastMessageAt: now,
-        lastMessagePreview: replyContent.slice(0, 100),
-        threadUrl,
-        isObligation: true,
-        isDismissed: false
-    });
+    const existing = await db.conversations.get(conversationId);
+
+    if (existing && !existing.isDismissed) {
+        // Update existing conversation
+        await db.conversations.update(conversationId, {
+            lastMessageAt: now,
+            lastMessagePreview: replyContent.slice(0, 100),
+            threadUrl,
+            isObligation: true
+        });
+    } else {
+        // Create new conversation
+        await db.conversations.put({
+            id: conversationId,
+            otherPartyHandle: normalizedHandle,
+            otherPartyTier: target?.tier || null,
+            lastMessageFrom: 'them',
+            lastMessageAt: now,
+            lastMessagePreview: replyContent.slice(0, 100),
+            threadUrl,
+            isObligation: true,
+            isDismissed: false
+        });
+    }
 
     // If they replied to one of our replies, mark it and award XP
     if (inReplyToOurTweetId) {
@@ -676,7 +656,7 @@ export async function trackIncomingReply(
 
             // Award XP for reply-back (gamification)
             const result = await recordGamificationAction('replyBack');
-            console.log(`[Amendoa v2] +${result.xpEarned} XP for reply-back from @${normalizedHandle}`);
+            console.log(`[Amendoa] +${result.xpEarned} XP for reply-back from @${normalizedHandle}`);
 
             // Emit XP earned event
             window.dispatchEvent(new CustomEvent('AMENDOA_XP_EARNED', {
@@ -690,5 +670,5 @@ export async function trackIncomingReply(
         detail: { handle: normalizedHandle, conversationId }
     }));
 
-    console.log(`[Amendoa v2] New conversation obligation from @${normalizedHandle}`);
+    console.log(`[Amendoa] New conversation obligation from @${normalizedHandle}`);
 }

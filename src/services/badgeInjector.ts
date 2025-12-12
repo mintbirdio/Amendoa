@@ -33,11 +33,11 @@ export class BadgeInjector {
     constructor() {
         this.init();
 
-        // Listen for tweets being scored
-        window.addEventListener('AMENDOA_TWEET_SCORED', ((event: CustomEvent) => {
-            const { tweetId } = event.detail;
-            // Remove from processed so it gets re-badged with new score
-            this.processedTweets.delete(tweetId);
+        // Listen for batch of tweets being processed - re-scan to badge new ones
+        window.addEventListener('AMENDOA_TWEETS_PROCESSED', (() => {
+            // Clear processed set so we re-check all visible tweets
+            // (some may now be in cache that weren't before)
+            this.processedTweets.clear();
             this.processTweets();
         }) as EventListener);
     }
@@ -81,7 +81,7 @@ export class BadgeInjector {
     }
 
     private startObserving() {
-        console.log('[Amendoa v2] BadgeInjector: Starting observation...');
+        console.log('[Amendoa] BadgeInjector: Starting observation...');
 
         // Inject CSS animation for hot badges
         this.injectStyles();
@@ -102,14 +102,14 @@ export class BadgeInjector {
 
         const timeline = document.querySelector('[data-testid="primaryColumn"]');
         if (timeline) {
-            console.log('[Amendoa v2] BadgeInjector: Found primaryColumn, observing...');
+            console.log('[Amendoa] BadgeInjector: Found primaryColumn, observing...');
             this.observer.observe(timeline, {
                 childList: true,
                 subtree: true
             });
             this.processTweets();
         } else {
-            console.log('[Amendoa v2] BadgeInjector: primaryColumn not found, retrying in 1s...');
+            console.log('[Amendoa] BadgeInjector: primaryColumn not found, retrying in 1s...');
             setTimeout(() => this.startObserving(), 1000);
         }
     }
@@ -118,7 +118,7 @@ export class BadgeInjector {
         if (!this.isEnabled) return;
 
         const tweets = document.querySelectorAll('article[data-testid="tweet"]');
-        console.log(`[Amendoa v2] BadgeInjector: Found ${tweets.length} tweet elements on page`);
+        console.log(`[Amendoa] BadgeInjector: Found ${tweets.length} tweet elements on page`);
 
         let foundInCache = 0;
         let injectedCount = 0;
@@ -138,7 +138,7 @@ export class BadgeInjector {
             if (!cached) {
                 // Log first few misses for debugging
                 if (this.processedTweets.size <= 5) {
-                    console.log(`[Amendoa v2] BadgeInjector: Tweet ${tweetId} not in cache`);
+                    console.log(`[Amendoa] BadgeInjector: Tweet ${tweetId} not in cache`);
                 }
                 continue;
             }
@@ -146,7 +146,7 @@ export class BadgeInjector {
             foundInCache++;
 
             if (cached.opportunityScore < this.minimumScore) {
-                console.log(`[Amendoa v2] BadgeInjector: Tweet ${tweetId} score ${cached.opportunityScore} below threshold ${this.minimumScore}`);
+                console.log(`[Amendoa] BadgeInjector: Tweet ${tweetId} score ${cached.opportunityScore} below threshold ${this.minimumScore}`);
                 continue;
             }
 
@@ -157,11 +157,11 @@ export class BadgeInjector {
                 tweetId
             });
             injectedCount++;
-            console.log(`[Amendoa v2] BadgeInjector: Injected badge for tweet ${tweetId} (score: ${cached.opportunityScore})`);
+            console.log(`[Amendoa] BadgeInjector: Injected badge for tweet ${tweetId} (score: ${cached.opportunityScore})`);
         }
 
         if (foundInCache > 0 || injectedCount > 0) {
-            console.log(`[Amendoa v2] BadgeInjector: ${foundInCache} in cache, ${injectedCount} badges injected`);
+            console.log(`[Amendoa] BadgeInjector: ${foundInCache} in cache, ${injectedCount} badges injected`);
         }
     }
 
@@ -363,21 +363,18 @@ export class BadgeInjector {
             }
         }
 
-        // Tweet not found on page - open in Twitter
-        // This happens when:
-        // 1. User scrolled away and Twitter removed it from DOM
-        // 2. User is on a different page (profile, notifications, etc.)
-        // 3. Tweet was from a previous session
+        // Tweet not found on page - navigate in same tab
+        // This keeps user in their workflow without tab clutter
         if (authorHandle) {
-            window.open(`https://twitter.com/${authorHandle}/status/${tweetId}`, '_blank');
+            window.location.href = `https://twitter.com/${authorHandle}/status/${tweetId}`;
         } else {
             // Try to get handle from cache
             db.tweetCache.get(tweetId).then(cached => {
                 if (cached) {
-                    window.open(`https://twitter.com/${cached.authorHandle}/status/${tweetId}`, '_blank');
+                    window.location.href = `https://twitter.com/${cached.authorHandle}/status/${tweetId}`;
                 } else {
                     // Last resort - use twitter's /i/status route which works without handle
-                    window.open(`https://twitter.com/i/status/${tweetId}`, '_blank');
+                    window.location.href = `https://twitter.com/i/status/${tweetId}`;
                 }
             });
         }

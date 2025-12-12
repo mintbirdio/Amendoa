@@ -199,8 +199,8 @@ export class AmendoaDB extends Dexie {
     constructor() {
         super('AmendoaDB');
 
-        // v7: Complete schema rewrite for Amendoa v2
-        // Drops all v1 tables and creates new structure
+        // v7: Complete schema rewrite for Amendoa
+        // Drops all legacy tables and creates new structure
         this.version(7).stores({
             // Drop old tables by setting to null
             velocityCache: null,
@@ -208,7 +208,7 @@ export class AmendoaDB extends Dexie {
             growthMetrics: null,
             styleExamples: null,
 
-            // New v2 tables
+            // Core tables
             targetAccounts: 'handle, tier, lastInteraction, addedAt',
             tweetCache: 'tweetId, authorHandle, postedAt, firstSeenAt, opportunityScore',
             ourReplies: 'replyId, inReplyToHandle, repliedAt',
