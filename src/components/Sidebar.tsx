@@ -56,6 +56,18 @@ export const Sidebar: React.FC = () => {
 
             {/* Footer - Daily Stats */}
             <DailyStats />
+
+            {/* Creator Credit */}
+            <div className="px-3 py-2 border-t border-white/5 text-center">
+                <a
+                    href="https://x.com/pedrogedge"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] text-gray-500 hover:text-amber-400 transition-colors"
+                >
+                    Made with ☕ by @pedrogedge
+                </a>
+            </div>
         </div>
     );
 };
