@@ -114,33 +114,6 @@ function drawBranding(ctx: CanvasRenderingContext2D, width: number): void {
     ctx.fillText('amendoa.app', width - 20 * SCALE, 30 * SCALE);
 }
 
-/**
- * Draw progress bar
- */
-function drawProgressBar(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    progress: number,
-    color: string
-): void {
-    // Background
-    drawRoundedRect(ctx, x, y, width, height, height / 2);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-    ctx.fill();
-
-    // Progress
-    const progressWidth = Math.max(height, width * (progress / 100));
-    drawRoundedRect(ctx, x, y, progressWidth, height, height / 2);
-    const gradient = ctx.createLinearGradient(x, y, x + progressWidth, y);
-    gradient.addColorStop(0, color);
-    gradient.addColorStop(1, COLORS.secondary);
-    ctx.fillStyle = gradient;
-    ctx.fill();
-}
-
 // =============================================================================
 // IMAGE GENERATORS
 // =============================================================================
@@ -158,73 +131,119 @@ async function generateRankUpImage(
 
     // Background
     drawBackground(ctx, CANVAS_WIDTH, CANVAS_HEIGHT);
-    drawBranding(ctx, CANVAS_WIDTH);
 
-    // "RANK UP!" header
-    ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    const padding = 24 * SCALE;
+    const centerX = CANVAS_WIDTH / 2;
+
+    // === TOP BAR: Branding ===
+    ctx.beginPath();
+    ctx.arc(padding + 8 * SCALE, 28 * SCALE, 8 * SCALE, 0, Math.PI * 2);
+    ctx.fillStyle = COLORS.primary;
+    ctx.shadowColor = COLORS.primary;
+    ctx.shadowBlur = 12 * SCALE;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    ctx.font = `bold ${14 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    ctx.fillStyle = COLORS.text;
+    ctx.textAlign = 'left';
+    ctx.fillText('AMENDOA', padding + 24 * SCALE, 33 * SCALE);
+
+    // Watermark
+    ctx.font = `${12 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    ctx.fillStyle = COLORS.textMuted;
+    ctx.textAlign = 'right';
+    ctx.fillText('amendoa.app', CANVAS_WIDTH - 20 * SCALE, 30 * SCALE);
+
+    // === HEADER: RANK UP! ===
+    ctx.font = `bold ${12 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
     ctx.fillStyle = COLORS.primary;
     ctx.textAlign = 'center';
-    ctx.fillText('RANK UP!', CANVAS_WIDTH / 2, 80);
+    ctx.fillText('RANK UP!', centerX, 70 * SCALE);
 
-    // New rank display
-    ctx.font = 'bold 48px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillStyle = COLORS.text;
+    // === LEVEL DISPLAY ===
+    const levelY = 115 * SCALE;
+
+    // Emoji + Tier name on same line
+    ctx.font = `${44 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText(`${status.rankInfo.emoji} ${status.rankInfo.tier} ${status.rankInfo.rank}`, CANVAS_WIDTH / 2, 140);
+    ctx.fillText(status.rankInfo.emoji, centerX - 90 * SCALE, levelY);
+
+    ctx.font = `bold ${38 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    ctx.fillStyle = COLORS.text;
+    ctx.textAlign = 'left';
+    ctx.fillText(`${status.rankInfo.tier} ${status.rankInfo.rank}`, centerX - 55 * SCALE, levelY);
 
     // Previous rank
-    ctx.font = '14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.font = `${14 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
     ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText(`From ${previousTier} ${previousRank}`, CANVAS_WIDTH / 2, 170);
-
-    // Stats row
-    const statsY = 220;
-    const statWidth = 150;
-    const startX = (CANVAS_WIDTH - (statWidth * 3 + 40)) / 2;
-
-    // Total XP
-    ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillStyle = COLORS.xp;
     ctx.textAlign = 'center';
-    ctx.fillText(status.totalXP.toLocaleString(), startX + statWidth / 2, statsY);
-    ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText('TOTAL XP', startX + statWidth / 2, statsY + 20);
+    ctx.fillText(`From ${previousTier} ${previousRank}`, centerX, levelY + 28 * SCALE);
 
-    // Streak
-    ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillStyle = COLORS.streak;
-    ctx.fillText(`${status.currentStreak}`, startX + statWidth + 20 + statWidth / 2, statsY);
-    ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText('DAY STREAK', startX + statWidth + 20 + statWidth / 2, statsY + 20);
+    // === 3 STAT CARDS ===
+    const cardY = 175 * SCALE;
+    const cardWidth = 150 * SCALE;
+    const cardHeight = 70 * SCALE;
+    const cardGap = 16 * SCALE;
+    const totalCardsWidth = cardWidth * 3 + cardGap * 2;
+    const cardsStartX = (CANVAS_WIDTH - totalCardsWidth) / 2;
 
-    // Multiplier
-    ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillStyle = COLORS.primary;
-    ctx.fillText(`${status.multiplier}x`, startX + (statWidth + 20) * 2 + statWidth / 2, statsY);
-    ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.fillText('MULTIPLIER', startX + (statWidth + 20) * 2 + statWidth / 2, statsY + 20);
+    const stats = [
+        { value: status.totalXP.toLocaleString(), label: 'TOTAL XP', color: COLORS.xp },
+        { value: status.currentStreak.toString(), label: 'DAY STREAK', color: COLORS.streak },
+        { value: `${status.multiplier}x`, label: 'MULTIPLIER', color: COLORS.primary }
+    ];
 
-    // Progress to next rank
-    drawProgressBar(
-        ctx,
-        100,
-        CANVAS_HEIGHT - 50,
-        CANVAS_WIDTH - 200,
-        8,
-        status.rankInfo.progressPercent,
-        COLORS.xp
-    );
+    stats.forEach((stat, index) => {
+        const cardX = cardsStartX + index * (cardWidth + cardGap);
 
-    ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        // Card background
+        drawRoundedRect(ctx, cardX, cardY, cardWidth, cardHeight, 10 * SCALE);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.lineWidth = 1 * SCALE;
+        ctx.stroke();
+
+        // Value
+        ctx.font = `bold ${28 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+        ctx.fillStyle = stat.color;
+        ctx.textAlign = 'center';
+        ctx.fillText(stat.value, cardX + cardWidth / 2, cardY + 38 * SCALE);
+
+        // Label
+        ctx.font = `${9 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+        ctx.fillStyle = COLORS.textMuted;
+        ctx.fillText(stat.label, cardX + cardWidth / 2, cardY + 56 * SCALE);
+    });
+
+    // === PROGRESS BAR ===
+    const progressY = CANVAS_HEIGHT - 45 * SCALE;
+    const progressWidth = 500 * SCALE;
+    const progressHeight = 8 * SCALE;
+    const progressX = centerX - progressWidth / 2;
+
+    drawRoundedRect(ctx, progressX, progressY, progressWidth, progressHeight, progressHeight / 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.fill();
+
+    const fillWidth = Math.max(progressHeight, progressWidth * (status.rankInfo.progressPercent / 100));
+    drawRoundedRect(ctx, progressX, progressY, fillWidth, progressHeight, progressHeight / 2);
+    const gradient = ctx.createLinearGradient(progressX, progressY, progressX + fillWidth, progressY);
+    gradient.addColorStop(0, COLORS.primary);
+    gradient.addColorStop(1, COLORS.secondary);
+    ctx.fillStyle = gradient;
+    ctx.fill();
+
+    // XP to next rank
+    const xpToNext = Math.floor(status.rankInfo.xpForNextRank - status.rankInfo.xpIntoRank);
+    ctx.font = `${10 * SCALE}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
     ctx.fillStyle = COLORS.textMuted;
     ctx.textAlign = 'left';
-    ctx.fillText(`${Math.floor(status.rankInfo.xpForNextRank - status.rankInfo.xpIntoRank).toLocaleString()} XP to next rank`, 100, CANVAS_HEIGHT - 30);
+    ctx.fillText(`${xpToNext.toLocaleString()} XP to next rank`, progressX, CANVAS_HEIGHT - 22 * SCALE);
 
     return new Promise((resolve) => {
-        canvas.toBlob((blob) => resolve(blob!), 'image/png');
+        canvas.toBlob((blob) => resolve(blob!), 'image/png', 1.0);
     });
 }
 

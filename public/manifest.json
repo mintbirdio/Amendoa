@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Amendoa",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Reply targeting HUD for X - find high-value reply opportunities and grow your network",
     "icons": {
         "16": "icon16.png",
