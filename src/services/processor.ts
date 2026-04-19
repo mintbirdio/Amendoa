@@ -15,6 +15,7 @@ import {
     type TweetData
 } from './scoreEngine';
 import { recordGamificationAction } from './gamification';
+import { logSentReply } from './replyLogger';
 
 // =============================================================================
 // TYPES
@@ -551,7 +552,9 @@ function findUserObject(obj: any, depth = 0): any {
 // =============================================================================
 
 /**
- * Track when user sends a reply
+ * Track when user sends a reply. Delegates to replyLogger which owns
+ * the ourReplies write + enrichment; keeping a single writer avoids
+ * the double-put race on CreateTweet intercepts.
  */
 export async function trackOutgoingReply(
     replyId: string,
@@ -559,41 +562,7 @@ export async function trackOutgoingReply(
     inReplyToHandle: string,
     content: string
 ): Promise<void> {
-    const normalizedHandle = normalizeHandle(inReplyToHandle);
-    const now = Date.now();
-
-    // Store the reply
-    await db.ourReplies.put({
-        replyId,
-        inReplyToTweetId,
-        inReplyToHandle: normalizedHandle,
-        repliedAt: now,
-        content,
-        likesReceived: 0,
-        repliesReceived: 0,
-        gotAuthorReply: false,
-        authorReplyTimestamp: null
-    });
-
-    // Update tweet cache if we replied to a cached tweet
-    const cachedTweet = await db.tweetCache.get(inReplyToTweetId);
-    if (cachedTweet) {
-        await db.tweetCache.update(inReplyToTweetId, {
-            didReply: true,
-            replyTimestamp: now
-        });
-    }
-
-    // Increment daily stats
-    const { incrementDailyStat } = await import('../db');
-    await incrementDailyStat('repliesSent');
-
-    // Check if we were a first responder (reply count was low when we replied)
-    if (cachedTweet && cachedTweet.replies <= 5) {
-        await incrementDailyStat('firstResponderCount');
-    }
-
-    console.log(`[Amendoa] Tracked reply to @${normalizedHandle}`);
+    await logSentReply(replyId, inReplyToTweetId, inReplyToHandle, content);
 }
 
 /**

@@ -12,10 +12,36 @@ import styles from '../index.css?inline';
 import App from '../App';
 import { processInterceptedData, trackOutgoingReply } from '../services/processor';
 import { recordGamificationAction, checkStreakOnLoad } from '../services/gamification';
+import { hydratePendingFromSession } from '../services/replyLogger';
 
 console.log('[Amendoa] Initializing...');
 
 const MOUNT_POINT_ID = 'amendoa-root';
+
+// Dedup CreateTweet intercepts: both XHR and Fetch paths can fire for the
+// same reply. DB writes are idempotent but gamification + logger aren't,
+// so we gate downstream effects on a recently-seen replyId set with TTL.
+const RECENT_REPLY_TTL_MS = 60 * 1000;
+const RECENT_REPLY_MAX = 50;
+const recentReplyIds = new Map<string, number>();
+
+function isDuplicateReplyId(replyId: string): boolean {
+    const now = Date.now();
+    // Drop expired entries
+    for (const [id, ts] of recentReplyIds) {
+        if (now - ts > RECENT_REPLY_TTL_MS) {
+            recentReplyIds.delete(id);
+        }
+    }
+    if (recentReplyIds.has(replyId)) return true;
+    recentReplyIds.set(replyId, now);
+    // Evict oldest if over cap
+    if (recentReplyIds.size > RECENT_REPLY_MAX) {
+        const oldestKey = recentReplyIds.keys().next().value;
+        if (oldestKey !== undefined) recentReplyIds.delete(oldestKey);
+    }
+    return false;
+}
 
 (function inject() {
     // Prevent double injection
@@ -78,6 +104,13 @@ const MOUNT_POINT_ID = 'amendoa-root';
                 const content = tweetResult?.legacy?.full_text;
 
                 if (inReplyTo && inReplyToHandle) {
+                    // Dedup: XHR + Fetch can both fire for the same CreateTweet.
+                    // DB write is idempotent but gamification + logger must be
+                    // gated to avoid double XP.
+                    if (replyId && isDuplicateReplyId(replyId)) {
+                        console.log('[Amendoa] Duplicate CreateTweet intercept ignored for', replyId);
+                        return;
+                    }
                     // This is a REPLY
                     console.log('[Amendoa] Detected reply to @' + inReplyToHandle);
                     if (replyId) {
@@ -107,6 +140,13 @@ const MOUNT_POINT_ID = 'amendoa-root';
     // Mount React app
     const root = createRoot(shadow);
     root.render(<App />);
+
+    // Hydrate pendingReplyContext from chrome.storage.session so that
+    // CreateTweet intercepts that fire after a hard navigation can still
+    // attribute the reply to 'amendoa' instead of 'native'.
+    hydratePendingFromSession().catch(err => {
+        console.warn('[Amendoa] Failed to hydrate pending reply context:', err);
+    });
 
     // Check streak on load (gamification)
     checkStreakOnLoad().then(result => {

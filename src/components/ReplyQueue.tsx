@@ -1,9 +1,15 @@
 import React, { useCallback, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Clock, MessageCircle, Heart, Users, RefreshCw, ExternalLink } from 'lucide-react';
+import { Clock, MessageCircle, Heart, Users, RefreshCw, Send, ExternalLink } from 'lucide-react';
 import { db, type TweetCache, type ScoreBadge } from '../db';
 import { getBadgeIcon, getTimingLabel, getPositionHint } from '../services/scoreEngine';
 import { badgeInjector } from '../services/badgeInjector';
+import { openReplyComposer } from '../services/replyFlow';
+import { setPending } from '../services/replyLogger';
+
+// Module-scope in-flight set to guard against fast double-clicks on the
+// Reply button. Entries are removed when the composer open attempt settles.
+const inFlightReplyOpens = new Set<string>();
 
 // =============================================================================
 // HOOKS
@@ -82,6 +88,20 @@ const OpportunityCard: React.FC<OpportunityCardProps> = ({ tweet }) => {
     const timingLabel = getTimingLabel(ageMinutes);
     const positionHint = getPositionHint(tweet.replies);
 
+    const handleReply = async () => {
+        // Double-click guard: ignore if an open for this tweet is already in flight.
+        if (inFlightReplyOpens.has(tweet.tweetId)) return;
+        inFlightReplyOpens.add(tweet.tweetId);
+        try {
+            setPending(tweet.tweetId, tweet.authorHandle, '');
+            await openReplyComposer(tweet.tweetId, tweet.authorHandle, '');
+        } catch (err) {
+            console.warn('[Amendoa] openReplyComposer failed:', err);
+        } finally {
+            inFlightReplyOpens.delete(tweet.tweetId);
+        }
+    };
+
     const handleJump = () => {
         badgeInjector.scrollToTweet(tweet.tweetId, tweet.authorHandle);
     };
@@ -147,13 +167,22 @@ const OpportunityCard: React.FC<OpportunityCardProps> = ({ tweet }) => {
                     </span>
                 </div>
 
-                <button
-                    onClick={handleJump}
-                    className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 hover:border-amber-500/30 rounded-md transition-all"
-                >
-                    <ExternalLink size={10} />
-                    Reply
-                </button>
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={handleJump}
+                        className="flex items-center justify-center w-6 h-6 text-[10px] font-medium text-gray-500 hover:text-amber-300 bg-white/[0.02] hover:bg-amber-500/10 border border-white/5 hover:border-amber-500/30 rounded-md transition-all"
+                        title="Jump to tweet"
+                    >
+                        <ExternalLink size={10} />
+                    </button>
+                    <button
+                        onClick={handleReply}
+                        className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 hover:border-amber-500/30 rounded-md transition-all"
+                    >
+                        <Send size={10} />
+                        Reply
+                    </button>
+                </div>
             </div>
         </div>
     );

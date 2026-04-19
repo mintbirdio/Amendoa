@@ -74,6 +74,8 @@ export interface TweetCache {
 /**
  * OurReplies - track replies we've sent for performance analysis
  */
+export type ReplySource = 'amendoa' | 'native';
+
 export interface OurReply {
     replyId: string;                   // primary key
     inReplyToTweetId: string;
@@ -81,11 +83,20 @@ export interface OurReply {
     repliedAt: number;
     content: string;
 
+    // Reply log context (v10)
+    source: ReplySource;
+    originalTweetContent: string;
+    originalPostedAt: number;
+    authorFollowerCountAtReply: number;
+    draftText: string;
+
     // Performance tracking
     likesReceived: number;
     repliesReceived: number;
     gotAuthorReply: boolean;
     authorReplyTimestamp: number | null;
+    authorLiked: boolean;
+    lastPolledAt: number | null;
 }
 
 /**
@@ -246,6 +257,28 @@ export class AmendoaDB extends Dexie {
             settings: 'key',
             gamificationProgress: 'date',
             userGamificationStats: 'id'
+        });
+
+        // v10: Reply log enrichment — source + original tweet snapshot on ourReplies
+        this.version(10).stores({
+            targetAccounts: 'handle, tier, lastInteraction, addedAt',
+            tweetCache: 'tweetId, authorHandle, postedAt, firstSeenAt, opportunityScore, isFromTarget',
+            ourReplies: 'replyId, inReplyToHandle, repliedAt, source',
+            conversations: 'id, otherPartyHandle, lastMessageAt, isObligation, isDismissed',
+            dailyStats: 'date',
+            settings: 'key',
+            gamificationProgress: 'date',
+            userGamificationStats: 'id'
+        }).upgrade(tx => {
+            return tx.table('ourReplies').toCollection().modify(reply => {
+                reply.source = reply.source ?? 'native';
+                reply.originalTweetContent = reply.originalTweetContent ?? '';
+                reply.originalPostedAt = reply.originalPostedAt ?? 0;
+                reply.authorFollowerCountAtReply = reply.authorFollowerCountAtReply ?? 0;
+                reply.draftText = reply.draftText ?? '';
+                reply.authorLiked = reply.authorLiked ?? false;
+                reply.lastPolledAt = reply.lastPolledAt ?? null;
+            });
         });
     }
 }
