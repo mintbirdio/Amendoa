@@ -106,26 +106,61 @@ function waitForElement<T extends Element = Element>(
  */
 async function ensureFocus(textarea: HTMLElement): Promise<boolean> {
     // X's modal animation and React focus management can steal focus after we
-    // call .focus(). Re-assert focus over a ~600ms budget until the textarea
-    // is actually the active element, otherwise the user has to click in.
-    const MAX_ATTEMPTS = 20;
-    const ATTEMPT_DELAY_MS = 30;
+    // call .focus(). Real users place the caret via click, which React-based
+    // editors (Draft.js / Lexical) handle more reliably than focus() alone.
+    // We click, call focus(), and place a caret at end-of-content via the
+    // Selection API, then retry if focus drifts.
+    const placeCaretAtEnd = (el: HTMLElement): void => {
+        try {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            range.collapse(false);
+            const sel = window.getSelection();
+            if (sel) {
+                sel.removeAllRanges();
+                sel.addRange(range);
+            }
+        } catch (e) {
+            console.warn('[Amendoa][replyFlow] caret placement failed', e);
+        }
+    };
+
+    const MAX_ATTEMPTS = 30;
+    const ATTEMPT_DELAY_MS = 40;
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
-        if (!textarea.isConnected) return false;
-        if (document.activeElement === textarea) return true;
+        if (!textarea.isConnected) {
+            console.warn('[Amendoa][replyFlow] textarea disconnected');
+            return false;
+        }
+        const active = document.activeElement;
+        const won = active === textarea || textarea.contains(active);
+        if (won) {
+            placeCaretAtEnd(textarea);
+            console.log('[Amendoa][replyFlow] focus won after', i, 'attempts');
+            return true;
+        }
+        if (i === 0) textarea.click();
         textarea.focus();
+        placeCaretAtEnd(textarea);
         await new Promise(r => setTimeout(r, ATTEMPT_DELAY_MS));
     }
-    return document.activeElement === textarea;
+    const finalActive = document.activeElement;
+    console.warn('[Amendoa][replyFlow] focus lost after retries. active=', finalActive?.tagName, (finalActive as HTMLElement)?.getAttribute?.('data-testid'), (finalActive as HTMLElement)?.className?.slice?.(0, 60));
+    return false;
 }
 
 export async function prefillComposer(draft: string): Promise<boolean> {
+    console.log('[Amendoa][replyFlow] prefillComposer start, waiting for', COMPOSER_SELECTOR);
     const textarea = await waitForElement<HTMLElement>(
         COMPOSER_SELECTOR,
         COMPOSER_WAIT_TIMEOUT_MS
     );
 
-    if (!textarea) return false;
+    if (!textarea) {
+        console.warn('[Amendoa][replyFlow] composer textarea never appeared');
+        return false;
+    }
+    console.log('[Amendoa][replyFlow] composer found', textarea);
 
     const focused = await ensureFocus(textarea);
     updateLastOpenStatus({ focusOk: focused });
@@ -168,6 +203,7 @@ export async function openReplyComposer(
     handle: string,
     draft: string
 ): Promise<boolean> {
+    console.log('[Amendoa][replyFlow] openReplyComposer', { tweetId, handle, draftLen: draft.length });
     // Reset diagnostics for this attempt.
     lastOpenStatus = {
         timestamp: Date.now(),
@@ -179,6 +215,7 @@ export async function openReplyComposer(
     };
 
     if (!isOnStatusPage(tweetId)) {
+        console.log('[Amendoa][replyFlow] not on status page, navigating');
         window.location.href = buildStatusUrl(handle, tweetId);
         return false;
     }
