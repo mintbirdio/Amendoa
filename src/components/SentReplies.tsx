@@ -26,8 +26,9 @@ function formatLastOpenStatus(status: LastOpenStatus): string {
         ? `focal=${status.focalSelector ?? 'primary'}`
         : 'focal=none';
     const prefill = status.prefillOk ? 'prefill=ok' : 'prefill=fail';
+    const focus = status.focusOk ? 'focus=ok' : 'focus=lost';
     const fallback = status.fellBackToIntent ? 'fallback=intent' : 'fallback=no';
-    return `Last open ${ago} — ${focal}, ${prefill}, ${fallback}`;
+    return `Last open ${ago} — ${focal}, ${focus}, ${prefill}, ${fallback}`;
 }
 
 /**

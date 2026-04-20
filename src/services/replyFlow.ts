@@ -28,6 +28,7 @@ export interface LastOpenStatus {
     focalFound: boolean;
     focalSelector: 'primary' | 'fallback' | null;
     prefillOk: boolean;
+    focusOk: boolean;
     fellBackToIntent: boolean;
 }
 
@@ -39,6 +40,7 @@ function updateLastOpenStatus(patch: Partial<LastOpenStatus>): void {
         focalFound: lastOpenStatus?.focalFound ?? false,
         focalSelector: lastOpenStatus?.focalSelector ?? null,
         prefillOk: lastOpenStatus?.prefillOk ?? false,
+        focusOk: lastOpenStatus?.focusOk ?? false,
         fellBackToIntent: lastOpenStatus?.fellBackToIntent ?? false,
         ...patch
     };
@@ -102,6 +104,21 @@ function waitForElement<T extends Element = Element>(
  * Exported so future drafting phases can call this directly after the
  * composer is already open.
  */
+async function ensureFocus(textarea: HTMLElement): Promise<boolean> {
+    // X's modal animation and React focus management can steal focus after we
+    // call .focus(). Re-assert focus over a ~600ms budget until the textarea
+    // is actually the active element, otherwise the user has to click in.
+    const MAX_ATTEMPTS = 20;
+    const ATTEMPT_DELAY_MS = 30;
+    for (let i = 0; i < MAX_ATTEMPTS; i++) {
+        if (!textarea.isConnected) return false;
+        if (document.activeElement === textarea) return true;
+        textarea.focus();
+        await new Promise(r => setTimeout(r, ATTEMPT_DELAY_MS));
+    }
+    return document.activeElement === textarea;
+}
+
 export async function prefillComposer(draft: string): Promise<boolean> {
     const textarea = await waitForElement<HTMLElement>(
         COMPOSER_SELECTOR,
@@ -110,7 +127,8 @@ export async function prefillComposer(draft: string): Promise<boolean> {
 
     if (!textarea) return false;
 
-    textarea.focus();
+    const focused = await ensureFocus(textarea);
+    updateLastOpenStatus({ focusOk: focused });
 
     if (draft.length === 0) return true;
 
@@ -156,6 +174,7 @@ export async function openReplyComposer(
         focalFound: false,
         focalSelector: null,
         prefillOk: false,
+        focusOk: false,
         fellBackToIntent: false
     };
 
