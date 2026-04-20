@@ -11,11 +11,38 @@
 // reply button inside it is the primary target. If X changes this, update
 // FOCAL_ARTICLE_SELECTOR or REPLY_BUTTON_SELECTOR.
 const FOCAL_ARTICLE_SELECTOR = 'article[tabindex="-1"][data-testid="tweet"]';
+const FOCAL_ARTICLE_FALLBACK_SELECTOR = 'article[data-testid="tweet"]';
 const REPLY_BUTTON_SELECTOR = 'button[data-testid="reply"]';
 const COMPOSER_SELECTOR = 'div[data-testid="tweetTextarea_0"][contenteditable="true"]';
 
 const FOCAL_WAIT_TIMEOUT_MS = 3000;
 const COMPOSER_WAIT_TIMEOUT_MS = 3000;
+
+// -----------------------------------------------------------------------------
+// Diagnostics: last-attempt status for openReplyComposer.
+// Module-scope singleton, read by the Sent tab's status strip. Not persisted.
+// -----------------------------------------------------------------------------
+
+export interface LastOpenStatus {
+    timestamp: number;                       // Date.now() at call start
+    focalFound: boolean;
+    focalSelector: 'primary' | 'fallback' | null;
+    prefillOk: boolean;
+    fellBackToIntent: boolean;
+}
+
+export let lastOpenStatus: LastOpenStatus | null = null;
+
+function updateLastOpenStatus(patch: Partial<LastOpenStatus>): void {
+    lastOpenStatus = {
+        timestamp: lastOpenStatus?.timestamp ?? Date.now(),
+        focalFound: lastOpenStatus?.focalFound ?? false,
+        focalSelector: lastOpenStatus?.focalSelector ?? null,
+        prefillOk: lastOpenStatus?.prefillOk ?? false,
+        fellBackToIntent: lastOpenStatus?.fellBackToIntent ?? false,
+        ...patch
+    };
+}
 
 function buildStatusUrl(handle: string, tweetId: string): string {
     return `https://x.com/${handle}/status/${tweetId}`;
@@ -123,23 +150,47 @@ export async function openReplyComposer(
     handle: string,
     draft: string
 ): Promise<boolean> {
+    // Reset diagnostics for this attempt.
+    lastOpenStatus = {
+        timestamp: Date.now(),
+        focalFound: false,
+        focalSelector: null,
+        prefillOk: false,
+        fellBackToIntent: false
+    };
+
     if (!isOnStatusPage(tweetId)) {
         window.location.href = buildStatusUrl(handle, tweetId);
         return false;
     }
 
-    const focal = await waitForElement<HTMLElement>(
+    let focal = await waitForElement<HTMLElement>(
         FOCAL_ARTICLE_SELECTOR,
         FOCAL_WAIT_TIMEOUT_MS
     );
+    let matchedSelector: 'primary' | 'fallback' | null = focal ? 'primary' : null;
 
     if (!focal) {
+        // Fallback selector — X may have dropped tabindex="-1" on the focal
+        // article. Still better than jumping straight to /intent/tweet.
+        focal = document.querySelector<HTMLElement>(FOCAL_ARTICLE_FALLBACK_SELECTOR);
+        if (focal) matchedSelector = 'fallback';
+    }
+
+    updateLastOpenStatus({
+        focalFound: !!focal,
+        focalSelector: matchedSelector
+    });
+
+    if (!focal) {
+        updateLastOpenStatus({ fellBackToIntent: true });
         window.location.href = buildIntentUrl(tweetId);
         return false;
     }
 
     const replyButton = focal.querySelector<HTMLElement>(REPLY_BUTTON_SELECTOR);
     if (!replyButton) {
+        updateLastOpenStatus({ fellBackToIntent: true });
         window.location.href = buildIntentUrl(tweetId);
         return false;
     }
@@ -147,9 +198,11 @@ export async function openReplyComposer(
     replyButton.click();
 
     const prefillOk = await prefillComposer(draft);
+    updateLastOpenStatus({ prefillOk });
     if (!prefillOk) {
         // Composer selector broke or textarea never mounted — fall back
         // to the intent URL so the user still has a path to reply.
+        updateLastOpenStatus({ fellBackToIntent: true });
         window.location.href = buildIntentUrl(tweetId);
         return false;
     }

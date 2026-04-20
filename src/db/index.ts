@@ -269,16 +269,39 @@ export class AmendoaDB extends Dexie {
             settings: 'key',
             gamificationProgress: 'date',
             userGamificationStats: 'id'
-        }).upgrade(tx => {
-            return tx.table('ourReplies').toCollection().modify(reply => {
-                reply.source = reply.source ?? 'native';
-                reply.originalTweetContent = reply.originalTweetContent ?? '';
-                reply.originalPostedAt = reply.originalPostedAt ?? 0;
-                reply.authorFollowerCountAtReply = reply.authorFollowerCountAtReply ?? 0;
-                reply.draftText = reply.draftText ?? '';
-                reply.authorLiked = reply.authorLiked ?? false;
-                reply.lastPolledAt = reply.lastPolledAt ?? null;
-            });
+        }).upgrade(async tx => {
+            try {
+                return await tx.table('ourReplies').toCollection().modify(reply => {
+                    try {
+                        reply.source = reply.source ?? 'native';
+                        reply.originalTweetContent = reply.originalTweetContent ?? '';
+                        reply.originalPostedAt = reply.originalPostedAt ?? 0;
+                        reply.authorFollowerCountAtReply = reply.authorFollowerCountAtReply ?? 0;
+                        reply.draftText = reply.draftText ?? '';
+                        reply.authorLiked = reply.authorLiked ?? false;
+                        reply.lastPolledAt = reply.lastPolledAt ?? null;
+                    } catch (rowError) {
+                        console.error(
+                            '[Amendoa] Dexie v10 upgrade: failed to backfill row',
+                            reply?.replyId,
+                            rowError
+                        );
+                        // Best-effort defaults so the row still satisfies the v10 shape.
+                        if (typeof reply === 'object' && reply !== null) {
+                            if (reply.source === undefined) reply.source = 'native';
+                            if (reply.originalTweetContent === undefined) reply.originalTweetContent = '';
+                            if (reply.originalPostedAt === undefined) reply.originalPostedAt = 0;
+                            if (reply.authorFollowerCountAtReply === undefined) reply.authorFollowerCountAtReply = 0;
+                            if (reply.draftText === undefined) reply.draftText = '';
+                            if (reply.authorLiked === undefined) reply.authorLiked = false;
+                            if (reply.lastPolledAt === undefined) reply.lastPolledAt = null;
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('[Amendoa] Dexie v10 upgrade failed', error);
+                throw error;
+            }
         });
     }
 }
