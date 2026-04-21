@@ -67,6 +67,31 @@ function isDuplicateReplyId(replyId: string): boolean {
         });
     }, true);
 
+    document.addEventListener('click', (e) => {
+        const path = e.composedPath();
+        const inAmendoa = path.some((el) => (el as HTMLElement)?.id === MOUNT_POINT_ID);
+        if (!inAmendoa) return;
+        const target = path[0] as HTMLElement;
+        const button = path.find((el) => (el as HTMLElement)?.tagName === 'BUTTON') as HTMLElement | undefined;
+        console.warn('[Amendoa][DOC-CLICK-IN-AMENDOA]', {
+            targetTag: target?.tagName,
+            targetText: target?.textContent?.slice(0, 40),
+            buttonText: button?.textContent?.slice(0, 40),
+            buttonClass: button?.className?.slice(0, 80),
+            defaultPrevented: e.defaultPrevented,
+        });
+    }, true);
+
+    document.addEventListener('mousedown', (e) => {
+        const path = e.composedPath();
+        const inAmendoa = path.some((el) => (el as HTMLElement)?.id === MOUNT_POINT_ID);
+        if (!inAmendoa) return;
+        const button = path.find((el) => (el as HTMLElement)?.tagName === 'BUTTON') as HTMLElement | undefined;
+        console.warn('[Amendoa][DOC-MOUSEDOWN-IN-AMENDOA]', {
+            buttonText: button?.textContent?.slice(0, 40),
+        });
+    }, true);
+
     // Inject styles
     const style = document.createElement('style');
     style.textContent = styles;

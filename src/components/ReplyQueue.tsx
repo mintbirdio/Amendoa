@@ -179,6 +179,9 @@ const OpportunityCard: React.FC<OpportunityCardProps> = ({ tweet }) => {
                     </button>
                     <button
                         onClick={handleReply}
+                        onMouseDown={() => console.warn('🟡 [Amendoa][BTN-MOUSEDOWN]', tweet.tweetId)}
+                        onPointerDown={() => console.warn('🟢 [Amendoa][BTN-POINTERDOWN]', tweet.tweetId)}
+                        data-amendoa-reply-btn={tweet.tweetId}
                         className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 hover:border-amber-500/30 rounded-md transition-all"
                     >
                         <Send size={10} />
