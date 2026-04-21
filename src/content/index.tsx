@@ -55,6 +55,18 @@ function isDuplicateReplyId(replyId: string): boolean {
     // Create Shadow DOM for style isolation
     const shadow = host.attachShadow({ mode: 'open' });
 
+    shadow.addEventListener('click', (e) => {
+        const path = e.composedPath();
+        const target = path[0] as HTMLElement;
+        const button = path.find((el) => (el as HTMLElement)?.tagName === 'BUTTON') as HTMLElement | undefined;
+        console.warn('[Amendoa][SHADOW-CLICK]', {
+            targetTag: target?.tagName,
+            targetText: target?.textContent?.slice(0, 30),
+            buttonText: button?.textContent?.slice(0, 30),
+            buttonClass: button?.className?.slice(0, 80),
+        });
+    }, true);
+
     // Inject styles
     const style = document.createElement('style');
     style.textContent = styles;

@@ -87,8 +87,10 @@ const OpportunityCard: React.FC<OpportunityCardProps> = ({ tweet }) => {
     const ageMinutes = (Date.now() - tweet.postedAt) / 1000 / 60;
     const timingLabel = getTimingLabel(ageMinutes);
     const positionHint = getPositionHint(tweet.replies);
+    console.warn('[Amendoa][CARD-RENDER]', tweet.tweetId, '@' + tweet.authorHandle);
 
     const handleReply = async () => {
+        console.warn('🔴 [Amendoa][HANDLEREPLY-FIRED]', tweet.tweetId, '@' + tweet.authorHandle);
         // Double-click guard: ignore if an open for this tweet is already in flight.
         if (inFlightReplyOpens.has(tweet.tweetId)) return;
         inFlightReplyOpens.add(tweet.tweetId);
