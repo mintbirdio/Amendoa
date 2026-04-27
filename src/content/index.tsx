@@ -12,7 +12,6 @@ import styles from '../index.css?inline';
 import App from '../App';
 import { processInterceptedData, trackOutgoingReply } from '../services/processor';
 import { recordGamificationAction, checkStreakOnLoad } from '../services/gamification';
-import { hydratePendingFromSession } from '../services/replyLogger';
 
 console.log('[Amendoa] Initializing...');
 
@@ -54,43 +53,6 @@ function isDuplicateReplyId(replyId: string): boolean {
 
     // Create Shadow DOM for style isolation
     const shadow = host.attachShadow({ mode: 'open' });
-
-    shadow.addEventListener('click', (e) => {
-        const path = e.composedPath();
-        const target = path[0] as HTMLElement;
-        const button = path.find((el) => (el as HTMLElement)?.tagName === 'BUTTON') as HTMLElement | undefined;
-        console.warn('[Amendoa][SHADOW-CLICK]', {
-            targetTag: target?.tagName,
-            targetText: target?.textContent?.slice(0, 30),
-            buttonText: button?.textContent?.slice(0, 30),
-            buttonClass: button?.className?.slice(0, 80),
-        });
-    }, true);
-
-    document.addEventListener('click', (e) => {
-        const path = e.composedPath();
-        const inAmendoa = path.some((el) => (el as HTMLElement)?.id === MOUNT_POINT_ID);
-        if (!inAmendoa) return;
-        const target = path[0] as HTMLElement;
-        const button = path.find((el) => (el as HTMLElement)?.tagName === 'BUTTON') as HTMLElement | undefined;
-        console.warn('[Amendoa][DOC-CLICK-IN-AMENDOA]', {
-            targetTag: target?.tagName,
-            targetText: target?.textContent?.slice(0, 40),
-            buttonText: button?.textContent?.slice(0, 40),
-            buttonClass: button?.className?.slice(0, 80),
-            defaultPrevented: e.defaultPrevented,
-        });
-    }, true);
-
-    document.addEventListener('mousedown', (e) => {
-        const path = e.composedPath();
-        const inAmendoa = path.some((el) => (el as HTMLElement)?.id === MOUNT_POINT_ID);
-        if (!inAmendoa) return;
-        const button = path.find((el) => (el as HTMLElement)?.tagName === 'BUTTON') as HTMLElement | undefined;
-        console.warn('[Amendoa][DOC-MOUSEDOWN-IN-AMENDOA]', {
-            buttonText: button?.textContent?.slice(0, 40),
-        });
-    }, true);
 
     // Inject styles
     const style = document.createElement('style');
@@ -177,13 +139,6 @@ function isDuplicateReplyId(replyId: string): boolean {
     // Mount React app
     const root = createRoot(shadow);
     root.render(<App />);
-
-    // Hydrate pendingReplyContext from chrome.storage.session so that
-    // CreateTweet intercepts that fire after a hard navigation can still
-    // attribute the reply to 'amendoa' instead of 'native'.
-    hydratePendingFromSession().catch(err => {
-        console.warn('[Amendoa] Failed to hydrate pending reply context:', err);
-    });
 
     // Check streak on load (gamification)
     checkStreakOnLoad().then(result => {

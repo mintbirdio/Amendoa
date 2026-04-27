@@ -2,7 +2,6 @@ import React from 'react';
 import { Clock, ExternalLink, Sparkles } from 'lucide-react';
 import { type OurReply } from '../db';
 import { useSentReplies, useSentRepliesCounts } from '../hooks/useSentReplies';
-import { lastOpenStatus, type LastOpenStatus } from '../services/replyFlow';
 
 // =============================================================================
 // HELPERS
@@ -18,34 +17,6 @@ function formatTimeAgo(timestamp: number): string {
 
 function buildReplyUrl(replyId: string): string {
     return `https://x.com/i/web/status/${replyId}`;
-}
-
-function formatLastOpenStatus(status: LastOpenStatus): string {
-    const ago = formatTimeAgo(status.timestamp);
-    const focal = status.focalFound
-        ? `focal=${status.focalSelector ?? 'primary'}`
-        : 'focal=none';
-    const prefill = status.prefillOk ? 'prefill=ok' : 'prefill=fail';
-    const focus = status.focusOk ? 'focus=ok' : 'focus=lost';
-    const fallback = status.fellBackToIntent ? 'fallback=intent' : 'fallback=no';
-    return `Last open ${ago} — ${focal}, ${focus}, ${prefill}, ${fallback}`;
-}
-
-/**
- * Poll the replyFlow module-scope lastOpenStatus every 2s.
- * Cheap, stateless, and avoids plumbing a subscriber API through the service.
- */
-function useLastOpenStatus(): LastOpenStatus | null {
-    const [status, setStatus] = React.useState<LastOpenStatus | null>(lastOpenStatus);
-    React.useEffect(() => {
-        const tick = () => {
-            const next = lastOpenStatus;
-            setStatus(prev => (prev === next ? prev : next));
-        };
-        const id = window.setInterval(tick, 2000);
-        return () => window.clearInterval(id);
-    }, []);
-    return status;
 }
 
 // =============================================================================
@@ -117,7 +88,6 @@ const SentReplyRow: React.FC<SentReplyRowProps> = ({ reply }) => {
 export const SentReplies: React.FC = () => {
     const replies = useSentReplies(50);
     const counts = useSentRepliesCounts();
-    const openStatus = useLastOpenStatus();
 
     return (
         <div className="p-3">
@@ -137,7 +107,7 @@ export const SentReplies: React.FC = () => {
                     <div className="text-3xl mb-3">📬</div>
                     <p className="text-gray-400 text-sm font-medium">No replies logged yet</p>
                     <p className="text-gray-600 text-xs mt-1">
-                        Hit Reply on a queue item to get started.
+                        Reply natively on x.com — sent replies appear here.
                     </p>
                 </div>
             ) : (
@@ -147,15 +117,6 @@ export const SentReplies: React.FC = () => {
                     ))}
                 </div>
             )}
-
-            {/* Diagnostics: last openReplyComposer attempt */}
-            <div className="mt-3 pt-2 border-t border-white/5">
-                <p className="text-gray-500 text-[10px] font-mono leading-snug">
-                    {openStatus
-                        ? formatLastOpenStatus(openStatus)
-                        : 'No reply opens yet.'}
-                </p>
-            </div>
         </div>
     );
 };

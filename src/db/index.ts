@@ -166,6 +166,15 @@ export interface GamificationProgress {
 }
 
 /**
+ * FollowerSnapshot - manually-entered daily follower count for delta plotting
+ */
+export interface FollowerSnapshot {
+    id?: number;
+    date: string;                      // YYYY-MM-DD
+    count: number;
+}
+
+/**
  * UserGamificationStats - persistent user gamification stats
  */
 export interface UserGamificationStats {
@@ -206,6 +215,8 @@ export class AmendoaDB extends Dexie {
     // Gamification tables
     gamificationProgress!: Table<GamificationProgress>;
     userGamificationStats!: Table<UserGamificationStats>;
+    // Follower delta tracking (v11)
+    followerSnapshots!: Table<FollowerSnapshot, number>;
 
     constructor() {
         super('AmendoaDB');
@@ -301,6 +312,28 @@ export class AmendoaDB extends Dexie {
             } catch (error) {
                 console.error('[Amendoa] Dexie v10 upgrade failed', error);
                 throw error;
+            }
+        });
+
+        // v11: Add followerSnapshots table for manually-entered daily follower counts.
+        // CRITICAL: every v10 table must be re-declared here verbatim — Dexie drops
+        // tables omitted from the latest version.
+        this.version(11).stores({
+            targetAccounts: 'handle, tier, lastInteraction, addedAt',
+            tweetCache: 'tweetId, authorHandle, postedAt, firstSeenAt, opportunityScore, isFromTarget',
+            ourReplies: 'replyId, inReplyToHandle, repliedAt, source',
+            conversations: 'id, otherPartyHandle, lastMessageAt, isObligation, isDismissed',
+            dailyStats: 'date',
+            settings: 'key',
+            gamificationProgress: 'date',
+            userGamificationStats: 'id',
+            followerSnapshots: '++id, &date'
+        }).upgrade(async () => {
+            try {
+                // no-op: new table only
+            } catch (e) {
+                console.error('[Amendoa] Dexie v11 upgrade failed', e);
+                throw e;
             }
         });
     }

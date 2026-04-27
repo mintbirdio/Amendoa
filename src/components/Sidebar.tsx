@@ -3,12 +3,13 @@ import { ChevronRight } from 'lucide-react';
 import { DailyStats } from './DailyStats';
 import { ReplyQueue } from './ReplyQueue';
 import { SentReplies } from './SentReplies';
+import { Settings } from './Settings';
 
 // =============================================================================
 // MAIN COMPONENT
 // =============================================================================
 
-type SidebarTab = 'queue' | 'sent';
+type SidebarTab = 'queue' | 'sent' | 'settings';
 
 export const Sidebar: React.FC = () => {
     const [isCollapsed, setIsCollapsed] = useState(false);
@@ -57,7 +58,7 @@ export const Sidebar: React.FC = () => {
             <div className="px-3 pt-2 pb-2 border-b border-white/5 flex items-center gap-1.5">
                 <button
                     onClick={() => setActiveTab('queue')}
-                    className={`flex-1 px-3 py-1.5 text-[11px] font-semibold rounded-full border transition-all ${
+                    className={`flex-1 px-2 py-1.5 text-[10px] font-semibold rounded-full border transition-all ${
                         activeTab === 'queue'
                             ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
                             : 'bg-white/[0.02] border-white/5 text-gray-500 hover:text-gray-300 hover:bg-white/5'
@@ -67,7 +68,7 @@ export const Sidebar: React.FC = () => {
                 </button>
                 <button
                     onClick={() => setActiveTab('sent')}
-                    className={`flex-1 px-3 py-1.5 text-[11px] font-semibold rounded-full border transition-all ${
+                    className={`flex-1 px-2 py-1.5 text-[10px] font-semibold rounded-full border transition-all ${
                         activeTab === 'sent'
                             ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
                             : 'bg-white/[0.02] border-white/5 text-gray-500 hover:text-gray-300 hover:bg-white/5'
@@ -75,11 +76,21 @@ export const Sidebar: React.FC = () => {
                 >
                     Sent
                 </button>
+                <button
+                    onClick={() => setActiveTab('settings')}
+                    className={`flex-1 px-2 py-1.5 text-[10px] font-semibold rounded-full border transition-all ${
+                        activeTab === 'settings'
+                            ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                            : 'bg-white/[0.02] border-white/5 text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                    }`}
+                >
+                    Settings
+                </button>
             </div>
 
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto custom-scrollbar">
-                {activeTab === 'queue' ? <ReplyQueue /> : <SentReplies />}
+                {activeTab === 'queue' ? <ReplyQueue /> : activeTab === 'sent' ? <SentReplies /> : <Settings />}
             </div>
 
             {/* Footer - Daily Stats */}
