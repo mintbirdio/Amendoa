@@ -197,17 +197,23 @@ threshold within its freshness window.
 
 - [x] **M0 — On-device check.** ✅ Done (§3.4): permalink deep-links into the X app; intent
       link is dead. Tap flow settled.
-- [ ] **M1 — Data adapter.** `ScraperSource implements TweetSource`; read one **X List
-      timeline** by id, map JSON → `TweetData`. Log scored output. (Local run.)
-- [ ] **M2 — Scoring reuse.** Import `scoreEngine.ts`; run `calculateOpportunityScore`
-      server-side with `target = null`; confirm HOT/HIGH badges look right.
-- [ ] **M3 — Notifier.** `PushoverNotifier` (or Telegram); send one alert whose tap URL is
-      the **bare permalink** `https://x.com/<user>/status/<id>`. Confirm tap → tweet in app.
-- [ ] **M4 — Dedup + threshold.** Persist alerted IDs; only push HOT, once.
-- [ ] **M5 — Scheduler.** GitHub Actions cron every 5 min; the watched **List ID** (one
-      value) + secrets (scraper key, Pushover token) in repo secrets/vars.
-- [ ] **M6 — Tune.** Adjust HOT threshold + freshness window so you get ~10–30
-      high-quality pings/day, not noise.
+- [x] **M1 — Data adapter.** ✅ `ScraperSource implements TweetSource` (`scout/src/sources/`),
+      pure JSON→`TweetData` mapper, defensive field fallbacks. Tested.
+- [x] **M2 — Scoring reuse.** ✅ The pure engine is extracted to `src/shared/scoring.ts` and
+      imported by both the extension and Scout (`scout/src/scoring.ts`, Discovery mode,
+      `target = null`). Parity locked by tests.
+- [x] **M3 — Notifier.** ✅ `PushoverNotifier` (+ `ConsoleNotifier` for dev); alert tap URL is
+      the **bare permalink**. HOT (≥80) raises Pushover priority. Tested.
+- [x] **M4 — Dedup + threshold.** ✅ `FileAlertStore` (JSON) + in-memory; only ≥`MIN_SCORE`,
+      once, with a retention window and per-run cap. Tested (incl. flush-on-failure).
+- [x] **M5 — Scheduler.** ✅ `.github/workflows/scout.yml` cron every 5 min; List ID + secrets
+      via repo secrets/vars; dedup state persisted via Actions cache. CI runs the suite.
+- [ ] **M6 — Tune.** ⏳ Needs live data: adjust `MIN_SCORE` + `FRESHNESS_MINUTES` so you get
+      ~10–30 high-quality pings/day. Do this once it's running with real keys.
+
+> **Status:** M0–M5 built, 56 passing tests, typecheck + lint clean, pipeline verified
+> end-to-end under `tsx`. Two secrets (scraper key + Pushover token) and one List ID are
+> all that stand between this and live alerts. See [`scout/README.md`](scout/README.md).
 
 ### Watchlist management (v0) — don't build one, reuse X's
 **First principle: nobody wants to build a watchlist from scratch.** X Lists already

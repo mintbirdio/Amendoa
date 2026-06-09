@@ -1,0 +1,19 @@
+{
+  "name": "amendoa-scout",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Phone-native reply radar: polls an X List, scores tweets, pushes high-value alerts to your phone.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "start": "tsx src/main.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "tsx": "^4.19.2",
+    "typescript": "~5.9.3",
+    "vitest": "^2.1.8"
+  }
+}

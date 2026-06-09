@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  scout:
+    name: Scout (typecheck + tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Scout deps
+        working-directory: scout
+        run: npm ci
+      - name: Typecheck
+        working-directory: scout
+        run: npm run typecheck
+      - name: Test
+        working-directory: scout
+        run: npm test
+
+  extension:
+    name: Extension (typecheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install deps
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc -b

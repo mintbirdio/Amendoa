@@ -1,12 +1,21 @@
 import Dexie, { type Table } from 'dexie';
+import {
+    type Tier,
+    type RelationshipStatus,
+    type ScoreBadge,
+    inferTier,
+    getScoreBadge,
+    normalizeHandle
+} from '../shared/scoring';
 
 // =============================================================================
 // TYPES
 // =============================================================================
 
-export type Tier = 'titan' | 'star' | 'rising' | 'emerging' | 'peer';
-export type RelationshipStatus = 'mutual' | 'following' | 'follower' | 'none';
-export type ScoreBadge = 'hot' | 'high' | 'good' | 'meh' | 'skip';
+// Scoring types/helpers live in the dependency-free shared core (so Scout can
+// reuse them); re-exported here so existing `../db` imports keep working.
+export type { Tier, RelationshipStatus, ScoreBadge };
+export { inferTier, getScoreBadge, normalizeHandle };
 
 // Gamification tier names
 export type GamificationTier = 'Lurker' | 'Reply Guy' | 'Engager' | 'Networker' | 'Voice' | 'Authority' | 'Thought Leader';
@@ -269,35 +278,6 @@ export function getTodayDate(): string {
  */
 export function getLocalDateString(date: Date): string {
     return date.toLocaleDateString('en-CA');
-}
-
-/**
- * Infer tier from follower count
- */
-export function inferTier(followerCount: number): Tier {
-    if (followerCount >= 100000) return 'titan';
-    if (followerCount >= 50000) return 'star';
-    if (followerCount >= 10000) return 'rising';
-    if (followerCount >= 1000) return 'emerging';
-    return 'peer';
-}
-
-/**
- * Get score badge from opportunity score
- */
-export function getScoreBadge(score: number): ScoreBadge {
-    if (score >= 80) return 'hot';
-    if (score >= 60) return 'high';
-    if (score >= 40) return 'good';
-    if (score >= 20) return 'meh';
-    return 'skip';
-}
-
-/**
- * Normalize handle (lowercase, remove @ if present)
- */
-export function normalizeHandle(handle: string): string {
-    return handle.toLowerCase().replace(/^@/, '');
 }
 
 /**
