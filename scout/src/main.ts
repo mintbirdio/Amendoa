@@ -5,11 +5,20 @@
  *   npm start           # uses process.env
  */
 
-import { loadEnv, ConfigError } from './config';
+import { loadEnv, ConfigError, type NotifierConfig } from './config';
 import { ScraperSource } from './sources/ScraperSource';
 import { PushoverNotifier } from './notify/PushoverNotifier';
+import { TelegramNotifier } from './notify/TelegramNotifier';
+import type { Notifier } from './notify/Notifier';
 import { FileAlertStore } from './store/FileAlertStore';
 import { runScout } from './pipeline';
+
+function buildNotifier(cfg: NotifierConfig): Notifier {
+    if (cfg.kind === 'telegram') {
+        return new TelegramNotifier({ botToken: cfg.botToken, chatId: cfg.chatId });
+    }
+    return new PushoverNotifier({ token: cfg.token, user: cfg.user });
+}
 
 export async function main(): Promise<number> {
     let env;
@@ -27,10 +36,7 @@ export async function main(): Promise<number> {
         apiKey: env.scraperApiKey,
         baseUrl: env.scraperBaseUrl
     });
-    const notifier = new PushoverNotifier({
-        token: env.pushoverToken,
-        user: env.pushoverUser
-    });
+    const notifier = buildNotifier(env.notifier);
     const store = await FileAlertStore.load(env.statePath);
 
     const summary = await runScout(env.watch, {

@@ -4,10 +4,12 @@ name: Amendoa Scout
 # to your phone. Runs on a schedule; the dedup state is carried between runs via
 # the Actions cache so a tweet is never alerted twice.
 #
-# Required repo secrets:  SCRAPER_API_KEY, PUSHOVER_TOKEN, PUSHOVER_USER
-# Required repo variable:  WATCH_LIST_ID  (an X List id; or set WATCH_USER_ID)
-# Optional variables:      MIN_SCORE, FRESHNESS_MINUTES, MAX_ALERTS_PER_RUN,
-#                          DEDUP_RETENTION_DAYS, SCRAPER_BASE_URL
+# Required secret:   SCRAPER_API_KEY
+# One notifier (free Telegram, or Pushover):
+#   secrets TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID, or PUSHOVER_TOKEN + PUSHOVER_USER
+# Required variable: WATCH_LIST_ID  (an X List id; or set WATCH_USER_ID)
+# Optional variables: NOTIFIER, MIN_SCORE, FRESHNESS_MINUTES, MAX_ALERTS_PER_RUN,
+#                     DEDUP_RETENTION_DAYS, SCRAPER_BASE_URL
 
 on:
   schedule:
@@ -46,6 +48,9 @@ jobs:
         env:
           SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
           SCRAPER_BASE_URL: ${{ vars.SCRAPER_BASE_URL }}
+          NOTIFIER: ${{ vars.NOTIFIER }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PUSHOVER_TOKEN: ${{ secrets.PUSHOVER_TOKEN }}
           PUSHOVER_USER: ${{ secrets.PUSHOVER_USER }}
           WATCH_LIST_ID: ${{ vars.WATCH_LIST_ID }}
