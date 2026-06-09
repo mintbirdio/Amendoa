@@ -10,12 +10,16 @@ import type { TweetData, ScoreBadge, ScoreComponents } from '../../src/shared/sc
 export type { TweetData, ScoreBadge, ScoreComponents };
 
 /**
- * What Scout watches. Reuse an X List you already curate, or your Following
- * feed — never a hand-built watchlist.
+ * What Scout watches: an X List you already curate — never a hand-built
+ * watchlist. A List is a single timeline endpoint (O(1) per poll), which is the
+ * only way to read a merged feed cheaply. There is no aggregated "following
+ * timeline" endpoint on the scraper (or an affordable one on the official API),
+ * so a true Following feed would require per-account fan-out whose cost scales
+ * with how many accounts you follow — deliberately not supported. Mirror your
+ * follows into a List instead.
  */
 export type WatchSource =
-    | { kind: 'list'; listId: string }
-    | { kind: 'following'; userId: string };
+    | { kind: 'list'; listId: string };
 
 /** A tweet plus its computed opportunity score, ready to (maybe) alert on. */
 export interface ScoredTweet {

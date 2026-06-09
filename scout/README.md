@@ -37,10 +37,10 @@ npm test            # vitest — 55 tests, all mocked (no API keys needed)
 
 ## Going live (the secrets you provide)
 
-1. **Scraper key** — sign up at your scraper provider (e.g. twitterapi.io) → `SCRAPER_API_KEY`.
-   ⚠️ Confirm the endpoint paths / JSON field names in `src/sources/ScraperSource.ts`
-   against the provider's live docs; `mapRawTweet` is defensive but the exact schema
-   is the one thing a real key is needed to verify.
+1. **Scraper key** — sign up at [twitterapi.io](https://twitterapi.io) → `SCRAPER_API_KEY`.
+   The List Tweets endpoint and field names in `src/sources/ScraperSource.ts` were
+   verified against twitterapi.io's 2026 docs; `mapRawTweet` stays defensive about
+   field-name variants, so a live schema tweak is a one-line fix there.
 2. **A notifier** — pick one (Scout auto-detects, or set `NOTIFIER=telegram|pushover`):
    - **Telegram (free, recommended):** message [@BotFather](https://t.me/BotFather) → `/newbot`
      → copy the bot token → `TELEGRAM_BOT_TOKEN`. Then message your new bot once and read
@@ -49,9 +49,14 @@ npm test            # vitest — 55 tests, all mocked (no API keys needed)
    - **Pushover ($4.99 once):** buy the iOS app, create an app token → `PUSHOVER_TOKEN`,
      grab your user key → `PUSHOVER_USER`. The $4.99 is Pushover's one-time license fee.
 
-Then pick what to watch:
-- **`WATCH_LIST_ID`** — the id from an X List URL `x.com/i/lists/<ID>` (preferred), or
-- **`WATCH_USER_ID`** — your numeric user id, to watch your Following feed.
+Then set what to watch:
+- **`WATCH_LIST_ID`** — the id from an X List URL `x.com/i/lists/<ID>`.
+
+> **Why a List, not your Following feed?** A List is one endpoint call (cheap,
+> O(1) per poll). There's no aggregated following-timeline endpoint on the
+> scraper, and the official API bills timeline reads at $0.005 each — so a true
+> following feed means per-account fan-out whose cost scales with how many
+> people you follow. Mirror the accounts you care about into a List instead.
 
 ### Run once locally
 

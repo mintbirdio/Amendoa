@@ -7,7 +7,7 @@ name: Amendoa Scout
 # Required secret:   SCRAPER_API_KEY
 # One notifier (free Telegram, or Pushover):
 #   secrets TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID, or PUSHOVER_TOKEN + PUSHOVER_USER
-# Required variable: WATCH_LIST_ID  (an X List id; or set WATCH_USER_ID)
+# Required variable: WATCH_LIST_ID  (an X List id)
 # Optional variables: NOTIFIER, MIN_SCORE, FRESHNESS_MINUTES, MAX_ALERTS_PER_RUN,
 #                     DEDUP_RETENTION_DAYS, SCRAPER_BASE_URL
 
@@ -54,7 +54,6 @@ jobs:
           PUSHOVER_TOKEN: ${{ secrets.PUSHOVER_TOKEN }}
           PUSHOVER_USER: ${{ secrets.PUSHOVER_USER }}
           WATCH_LIST_ID: ${{ vars.WATCH_LIST_ID }}
-          WATCH_USER_ID: ${{ vars.WATCH_USER_ID }}
           MIN_SCORE: ${{ vars.MIN_SCORE }}
           FRESHNESS_MINUTES: ${{ vars.FRESHNESS_MINUTES }}
           MAX_ALERTS_PER_RUN: ${{ vars.MAX_ALERTS_PER_RUN }}

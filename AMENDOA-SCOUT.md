@@ -30,7 +30,7 @@ has no growth value — and it must be **cheap**.
 ## 2. The product loop
 
 ```
-An X List you already curate ("Growth targets") OR your Following feed
+An X List you already curate ("Growth targets")
   → cloud poller fetches its timeline's fresh ORIGINAL posts (every ~5 min)
   → scoreEngine.ts ranks each: reach × freshness × low-competition
   → when a post crosses HOT, push an alert to the iPhone
@@ -162,23 +162,22 @@ once) ≈ ~$5/month.**
 ```ts
 // The ONLY thing that changes when you move scraper → official API.
 export interface TweetSource {
-  /** Fresh original posts (no replies/retweets) from a source's timeline, newest first.
-   *  source = an X List id ("list:1234...") or the Following feed ("following").
-   *  No per-account fan-out: one fetch returns the whole curated timeline. */
+  /** Fresh original posts (no replies/retweets) from a List's timeline, newest first.
+   *  source = an X List id. No per-account fan-out: one fetch returns the whole
+   *  curated timeline (O(1) per poll — the only cheap way to read a merged feed). */
   fetchRecentOriginals(source: WatchSource, sinceMinutes: number): Promise<TweetData[]>;
 }
 
 type WatchSource =
-  | { kind: "list"; listId: string }      // GET /2/lists/:id/tweets
-  | { kind: "following"; userId: string }; // GET /2/users/:id/timelines/reverse_chronological
+  | { kind: "list"; listId: string };     // GET /twitter/list/tweets?listId=…  (scraper)
+                                          // GET /2/lists/:id/tweets            (official)
 
 // TweetData is ALREADY defined in src/services/scoreEngine.ts — reuse it verbatim:
 //   tweetId, authorHandle, postedAt, likes, retweets, replies, views,
 //   isReply, isThread, authorFollowerCount?, authorIsPremium?
 
-class ScraperSource implements TweetSource { /* v0: cheap scraper, list/following timeline */ }
-class OfficialXSource implements TweetSource { /* later: List Tweets lookup /
-                                                  reverse_chronological timeline */ }
+class ScraperSource implements TweetSource { /* v0: twitterapi.io List Tweets endpoint */ }
+class OfficialXSource implements TweetSource { /* later: official List Tweets lookup */ }
 ```
 
 `scoreEngine.ts` is **already pure TypeScript** — only two helpers touch the browser DB
@@ -220,9 +219,16 @@ threshold within its freshness window.
 *are* curated watchlists. Make one List in the X app called "Growth targets," and Scout
 reads its timeline directly via the List id (found in the list's URL,
 `x.com/i/lists/<ID>`). You curate it natively on your phone; Scout needs only that one
-id. No `watchlist.json`, no per-account fan-out, no separate UI — ever. (Following feed
-works too via the reverse-chronological timeline endpoint, but a dedicated List keeps
-growth targets separate from the noise of who you follow personally.)
+id. No `watchlist.json`, no per-account fan-out, no separate UI — ever.
+
+> **Why List-only (not a Following feed)?** A List is a single timeline endpoint
+> — O(1) per poll, ~$26/mo on the scraper at a 5-min cadence. A true Following
+> feed has no aggregated endpoint on the cheap scraper, and the official X API
+> (2026: pay-per-use, $0.005/read, no Following-timeline discount) bills it at
+> the full rate. Either way a Following feed means per-account fan-out whose cost
+> scales with how many people you follow — hundreds of $/mo at a few hundred
+> follows. A dedicated List also keeps growth targets separate from personal
+> noise. Want following-feed coverage? Mirror those accounts into a List.
 
 ---
 

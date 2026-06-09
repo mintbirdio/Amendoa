@@ -3,13 +3,10 @@ import { resolveWatch, resolveConfig, resolveNotifier, loadEnv, ConfigError } fr
 import { DEFAULT_CONFIG } from '../src/types';
 
 describe('resolveWatch', () => {
-    it('prefers a list id', () => {
-        expect(resolveWatch({ WATCH_LIST_ID: 'L1', WATCH_USER_ID: 'U1' })).toEqual({ kind: 'list', listId: 'L1' });
+    it('resolves a list id', () => {
+        expect(resolveWatch({ WATCH_LIST_ID: 'L1' })).toEqual({ kind: 'list', listId: 'L1' });
     });
-    it('falls back to following', () => {
-        expect(resolveWatch({ WATCH_USER_ID: 'U1' })).toEqual({ kind: 'following', userId: 'U1' });
-    });
-    it('throws when neither set', () => {
+    it('throws when no list id set', () => {
         expect(() => resolveWatch({})).toThrow(ConfigError);
     });
 });

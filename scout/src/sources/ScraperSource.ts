@@ -1,14 +1,19 @@
 /**
- * ScraperSource — v0 data source via a third-party scraper API (twitterapi.io
- * shape by default). ~33× cheaper than the official API; personal use only.
+ * ScraperSource — v0 data source via twitterapi.io. ~33× cheaper than the
+ * official X API ($0.00015 vs $0.005 per tweet read); personal use only.
  *
  * The HTTP call and the JSON→TweetData mapping are split so the mapping is pure
  * and fully unit-tested, and the HTTP is injectable (a fake `fetch` in tests).
  *
- * ⚠️ ONE THING TO CONFIRM WITH A REAL KEY: the exact endpoint paths and JSON
- * field names below follow twitterapi.io's documented shape, but providers
- * tweak these. `mapRawTweet` is deliberately defensive (tolerates missing
- * fields) and is the single place to adjust if the live schema differs.
+ * Verified against twitterapi.io docs (2026): the List Tweets endpoint is
+ * `GET /twitter/list/tweets?listId=…` with an `X-API-Key` header, returning
+ * `{ tweets: [...], has_next_page, next_cursor }`. Tweet/author field names
+ * (id, text, createdAt, likeCount, …, author.userName/followers/isBlueVerified)
+ * are matched by `mapRawTweet`, which stays defensive about field-name variants.
+ *
+ * Note: the endpoint is cursor-paginated (~20 tweets/page; there is no `limit`
+ * param). Scout fetches the newest page only — ample for a curated list polled
+ * every few minutes. (Cursor paging is a future knob if a list is very busy.)
  */
 
 import type { TweetData, WatchSource } from '../types';
@@ -22,8 +27,6 @@ export interface ScraperSourceOptions {
     baseUrl?: string;
     /** Injected fetch (defaults to global fetch). */
     fetchFn?: FetchFn;
-    /** Max tweets to request per page (provider-dependent). */
-    pageSize?: number;
 }
 
 /** Loose shape of a raw tweet object returned by the scraper. */
@@ -71,21 +74,16 @@ export class ScraperSource implements TweetSource {
     private readonly apiKey: string;
     private readonly baseUrl: string;
     private readonly fetchFn: FetchFn;
-    private readonly pageSize: number;
 
     constructor(opts: ScraperSourceOptions) {
         if (!opts.apiKey) throw new Error('ScraperSource: apiKey is required');
         this.apiKey = opts.apiKey;
         this.baseUrl = (opts.baseUrl ?? DEFAULT_BASE).replace(/\/$/, '');
         this.fetchFn = opts.fetchFn ?? (globalThis.fetch as unknown as FetchFn);
-        this.pageSize = opts.pageSize ?? 100;
     }
 
     buildUrl(source: WatchSource): string {
-        if (source.kind === 'list') {
-            return `${this.baseUrl}/twitter/list/tweets?listId=${encodeURIComponent(source.listId)}&limit=${this.pageSize}`;
-        }
-        return `${this.baseUrl}/twitter/user/following_timeline?userId=${encodeURIComponent(source.userId)}&limit=${this.pageSize}`;
+        return `${this.baseUrl}/twitter/list/tweets?listId=${encodeURIComponent(source.listId)}`;
     }
 
     async fetchRecentOriginals(source: WatchSource, sinceMinutes: number): Promise<SourceTweet[]> {

@@ -112,9 +112,6 @@ describe('ScraperSource.buildUrl', () => {
     it('builds list url', () => {
         expect(src.buildUrl({ kind: 'list', listId: 'L1' })).toContain('/twitter/list/tweets?listId=L1');
     });
-    it('builds following url', () => {
-        expect(src.buildUrl({ kind: 'following', userId: 'U1' })).toContain('following_timeline?userId=U1');
-    });
 });
 
 describe('ScraperSource.fetchRecentOriginals', () => {

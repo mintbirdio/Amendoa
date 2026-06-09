@@ -6,8 +6,12 @@
  *   NOTIFIER          — "telegram" | "pushover"              (optional; auto-detected)
  *     Telegram:  TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
  *     Pushover:  PUSHOVER_TOKEN + PUSHOVER_USER
- *   WATCH_LIST_ID     — an X List id (preferred), OR
- *   WATCH_USER_ID     — your user id (to watch your Following feed)
+ *   WATCH_LIST_ID     — an X List id to watch (required)
+ *
+ * Scout watches an X List only: a List is a single timeline endpoint, the one
+ * way to read a merged feed cheaply. A true "Following feed" has no aggregated
+ * endpoint and would need per-account fan-out (cost scales with follow count),
+ * so it's intentionally unsupported — mirror your follows into a List instead.
  */
 
 import type { ScoutConfig, WatchSource } from './types';
@@ -45,13 +49,11 @@ function req(env: Env, key: string): string {
     return v.trim();
 }
 
-/** Resolve the watch target from env (List preferred over Following). */
+/** Resolve the watch target from env. Scout watches an X List. */
 export function resolveWatch(env: Env): WatchSource {
     const listId = env.WATCH_LIST_ID?.trim();
     if (listId) return { kind: 'list', listId };
-    const userId = env.WATCH_USER_ID?.trim();
-    if (userId) return { kind: 'following', userId };
-    throw new ConfigError('Set WATCH_LIST_ID (preferred) or WATCH_USER_ID to choose what to watch');
+    throw new ConfigError('Set WATCH_LIST_ID to an X List id (the id in x.com/i/lists/<ID>)');
 }
 
 /**
