@@ -6,12 +6,13 @@
  *   NOTIFIER          — "telegram" | "pushover"              (optional; auto-detected)
  *     Telegram:  TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
  *     Pushover:  PUSHOVER_TOKEN + PUSHOVER_USER
- *   WATCH_LIST_ID     — an X List id to watch (required)
+ *   WATCH_LIST_ID     — an X List id to watch (required for pull/cron mode only)
  *
- * Scout watches an X List only: a List is a single timeline endpoint, the one
- * way to read a merged feed cheaply. A true "Following feed" has no aggregated
- * endpoint and would need per-account fan-out (cost scales with follow count),
- * so it's intentionally unsupported — mirror your follows into a List instead.
+ * Scout's primary path is PUSH (webhook Worker): a twitterapi.io filter rule
+ * delivers your watched accounts' new originals in real time, so cost scales
+ * with new tweets (~$1/mo) instead of poll frequency. See `worker.ts` and
+ * `scripts/registerRule.ts`. The pull path below (`loadEnv` + WATCH_LIST_ID) is
+ * the cron fallback that polls a single X List.
  */
 
 import type { ScoutConfig, WatchSource } from './types';
@@ -91,5 +92,25 @@ export function loadEnv(env: Env = process.env): ResolvedEnv {
         watch: resolveWatch(env),
         config: resolveConfig(env),
         statePath: env.STATE_PATH?.trim() || '.scout-state/alerted.json'
+    };
+}
+
+/**
+ * Config for the webhook Worker (push mode). No watch target or state path —
+ * tweets are pushed by a filter rule and dedup lives in KV. `webhookSecret` is
+ * the twitterapi.io API key, which the service echoes as `X-API-Key` on every
+ * push so the Worker can verify the request is authentic.
+ */
+export interface WorkerConfig {
+    webhookSecret: string;
+    notifier: NotifierConfig;
+    config: ScoutConfig;
+}
+
+export function loadWorkerConfig(env: Env): WorkerConfig {
+    return {
+        webhookSecret: req(env, 'SCRAPER_API_KEY'),
+        notifier: resolveNotifier(env),
+        config: resolveConfig(env)
     };
 }

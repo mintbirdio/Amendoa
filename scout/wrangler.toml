@@ -1,0 +1,27 @@
+# Cloudflare Worker config for Scout's webhook receiver (push mode).
+#
+# Deploy:
+#   1. npx wrangler kv namespace create DEDUP_KV   # paste the id below
+#   2. npx wrangler secret put SCRAPER_API_KEY      # twitterapi.io key (also the webhook secret)
+#   3. npx wrangler secret put TELEGRAM_BOT_TOKEN
+#   4. npx wrangler secret put TELEGRAM_CHAT_ID
+#   5. npx wrangler deploy
+#   6. Paste the deployed URL into twitterapi.io dashboard → Filter Rules → webhook
+#   7. npm run register-rule   (creates + activates the from:<accounts> rule)
+#
+# Free tier covers this comfortably (100k requests/day, 1k KV writes/day).
+
+name = "amendoa-scout"
+main = "src/worker.ts"
+compatibility_date = "2026-06-01"
+
+[[kv_namespaces]]
+binding = "DEDUP_KV"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+# Non-secret tuning knobs. Secrets (SCRAPER_API_KEY, TELEGRAM_*) go via `wrangler secret put`.
+[vars]
+MIN_SCORE = "70"
+FRESHNESS_MINUTES = "60"
+MAX_ALERTS_PER_RUN = "10"
+DEDUP_RETENTION_DAYS = "7"

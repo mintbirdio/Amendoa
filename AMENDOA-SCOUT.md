@@ -30,8 +30,8 @@ has no growth value — and it must be **cheap**.
 ## 2. The product loop
 
 ```
-An X List you already curate ("Growth targets")
-  → cloud poller fetches its timeline's fresh ORIGINAL posts (every ~5 min)
+A filter rule for the accounts you watch (from:a OR from:b … -filter:retweets -filter:replies)
+  → twitterapi.io PUSHES each new original to a Cloudflare Worker (once per tweet, real-time)
   → scoreEngine.ts ranks each: reach × freshness × low-competition
   → when a post crosses HOT, push an alert to the iPhone
   → tap notification → X app opens on that tweet → reply early, by hand
@@ -53,8 +53,10 @@ user replies manually.**
 - X scrapped the fixed tiers (the old $200 Basic / **$5,000 Pro** wall) and made
   **pay-per-use** the default: **$0.005 per post read**, no subscription, no minimum.
 - **24-hour deduplication**: re-reading the same tweet within a UTC day is billed once.
-  → polling *frequency is effectively free*; cost is driven only by the count of
-  **unique original posts** your watchlist produces.
+  → on the *official* API, polling frequency is effectively free.
+- ⚠️ **But we run on twitterapi.io, which has no such read-dedup** — it bills per tweet
+  *returned*, so re-polling the same tweets is *not* free. That's the whole reason Scout
+  pushes (filter-rule webhook) instead of polls; see the Idiot Index note in §5.
 - Source: <https://docs.x.com/x-api/getting-started/pricing>,
   <https://www.medianama.com/2026/02/223-x-developer-api-pricing-pay-per-use-model/>
 
@@ -157,28 +159,30 @@ once) ≈ ~$5/month.**
                                  📱 iPhone
 ```
 
-### The one interface that makes "swap later" true
+### One pipeline, two ingest paths
+
+`processBatch` (in `pipeline.ts`) is the single authority — score → threshold → dedup →
+notify. It takes an already-collected batch of tweets, so **both ingest paths feed it the
+same `TweetData`** and the scoring brain never knows whether a tweet was pushed or polled:
 
 ```ts
-// The ONLY thing that changes when you move scraper → official API.
+// PRIMARY (push): twitterapi.io filter rule → webhook → Worker.
+parseWebhookTweets(body) → processBatch(tweets, { notifier, store, config }, now)
+
+// FALLBACK (pull): cron polls one List via the swappable TweetSource seam.
 export interface TweetSource {
-  /** Fresh original posts (no replies/retweets) from a List's timeline, newest first.
-   *  source = an X List id. No per-account fan-out: one fetch returns the whole
-   *  curated timeline (O(1) per poll — the only cheap way to read a merged feed). */
-  fetchRecentOriginals(source: WatchSource, sinceMinutes: number): Promise<TweetData[]>;
+  fetchRecentOriginals(source: WatchSource, sinceMinutes: number): Promise<SourceTweet[]>;
 }
+class ScraperSource  implements TweetSource { /* twitterapi.io List Tweets endpoint */ }
+class OfficialXSource implements TweetSource { /* later: official List Tweets lookup   */ }
 
-type WatchSource =
-  | { kind: "list"; listId: string };     // GET /twitter/list/tweets?listId=…  (scraper)
-                                          // GET /2/lists/:id/tweets            (official)
-
-// TweetData is ALREADY defined in src/services/scoreEngine.ts — reuse it verbatim:
+// TweetData is ALREADY defined in src/shared/scoring.ts — reused verbatim:
 //   tweetId, authorHandle, postedAt, likes, retweets, replies, views,
 //   isReply, isThread, authorFollowerCount?, authorIsPremium?
-
-class ScraperSource implements TweetSource { /* v0: twitterapi.io List Tweets endpoint */ }
-class OfficialXSource implements TweetSource { /* later: official List Tweets lookup */ }
 ```
+
+The same defensive `mapRawTweet` handles both the pull JSON and the push payload (it even
+absorbs the webhook's lowercase `author.username`), so there is one mapping, not two.
 
 `scoreEngine.ts` is **already pure TypeScript** — only two helpers touch the browser DB
 (`calculateRiskPenalty`, `calculateOpportunityScore` do a Dexie lookup). For Scout,
@@ -186,9 +190,10 @@ replace that lookup with a server store (or pass `target = null`, which the engi
 already handles for Discovery-mode scoring). **The scoring brain ships unchanged.**
 
 ### Dedup / "don't alert twice"
-Keep a small persisted set of alerted tweet IDs (e.g. a JSON file committed by the
-Action, or a free KV store). Only push a tweet once, and only if it crosses the HOT
-threshold within its freshness window.
+A small persisted set of alerted tweet IDs. Push mode uses `KvAlertStore` (Cloudflare KV):
+each alerted id is written with a TTL equal to the retention window, so expiry is automatic
+(no scan, no `prune`). The pull fallback uses `FileAlertStore` (JSON in the Actions cache).
+Only push a tweet once, and only if it crosses the HOT threshold within its freshness window.
 
 ---
 
@@ -203,32 +208,40 @@ threshold within its freshness window.
       `target = null`). Parity locked by tests.
 - [x] **M3 — Notifier.** ✅ `PushoverNotifier` (+ `ConsoleNotifier` for dev); alert tap URL is
       the **bare permalink**. HOT (≥80) raises Pushover priority. Tested.
-- [x] **M4 — Dedup + threshold.** ✅ `FileAlertStore` (JSON) + in-memory; only ≥`MIN_SCORE`,
-      once, with a retention window and per-run cap. Tested (incl. flush-on-failure).
-- [x] **M5 — Scheduler.** ✅ `.github/workflows/scout.yml` cron every 5 min; List ID + secrets
-      via repo secrets/vars; dedup state persisted via Actions cache. CI runs the suite.
+- [x] **M4 — Dedup + threshold.** ✅ `KvAlertStore` (push, KV+TTL) / `FileAlertStore` (pull);
+      only ≥`MIN_SCORE`, once, with a retention window and per-run cap. Tested (incl. flush-on-failure).
+- [x] **M5 — Ingest + delivery.** ✅ **Push:** Cloudflare `worker.ts` verifies twitterapi.io's
+      echoed `X-API-Key`, parses the webhook, runs `processBatch`; `scripts/registerRule.ts`
+      builds + activates the `from:` filter rule(s); `wrangler.toml` configures it. **Pull
+      fallback:** the Actions `poll` job (manual) still polls a List. CI runs the suite on push.
 - [ ] **M6 — Tune.** ⏳ Needs live data: adjust `MIN_SCORE` + `FRESHNESS_MINUTES` so you get
       ~10–30 high-quality pings/day. Do this once it's running with real keys.
 
-> **Status:** M0–M5 built, 56 passing tests, typecheck + lint clean, pipeline verified
-> end-to-end under `tsx`. Two secrets (scraper key + Pushover token) and one List ID are
-> all that stand between this and live alerts. See [`scout/README.md`](scout/README.md).
+> **Status:** M0–M5 built, 79 passing tests, typecheck clean. Push pipeline verified end to
+> end via the Worker fetch handler under vitest. To go live: deploy the Worker, register the
+> rule, paste the URL in the twitterapi.io dashboard. See [`scout/README.md`](scout/README.md).
 
-### Watchlist management (v0) — don't build one, reuse X's
-**First principle: nobody wants to build a watchlist from scratch.** X Lists already
-*are* curated watchlists. Make one List in the X app called "Growth targets," and Scout
-reads its timeline directly via the List id (found in the list's URL,
-`x.com/i/lists/<ID>`). You curate it natively on your phone; Scout needs only that one
-id. No `watchlist.json`, no per-account fan-out, no separate UI — ever.
+### The Idiot Index: why push, not poll
+Strip Scout to physics: read each *new* original from your accounts **once**. At ~200
+new originals/day that floor is ~6k reads/mo ≈ **$0.90/mo** ("magic-wand number"). The
+cron-poll design re-reads the newest ~20 every 5 min ≈ 173k reads/mo ≈ $26 — an **Idiot
+Index of ~29×**, and 100% of the waste is re-scanning the same tweets waiting for a new
+one (twitterapi.io bills per tweet *returned*; there's no 24h read-dedup on the scraper).
+A filter-rule **webhook pays the floor and delivers sub-second** — cheaper *and* faster,
+the signature of a real first-principles win rather than a trade. Push is primary; the
+List poll survives only as a zero-infra fallback.
 
-> **Why List-only (not a Following feed)?** A List is a single timeline endpoint
-> — O(1) per poll, ~$26/mo on the scraper at a 5-min cadence. A true Following
-> feed has no aggregated endpoint on the cheap scraper, and the official X API
-> (2026: pay-per-use, $0.005/read, no Following-timeline discount) bills it at
-> the full rate. Either way a Following feed means per-account fan-out whose cost
-> scales with how many people you follow — hundreds of $/mo at a few hundred
-> follows. A dedicated List also keeps growth targets separate from personal
-> noise. Want following-feed coverage? Mirror those accounts into a List.
+### Watchlist management — don't build one
+**Nobody wants to build a watchlist from scratch.** In push mode you hand Scout the
+handles you care about (`WATCH_HANDLES`); `registerRule.ts` packs them into `from:` filter
+rules — no `watchlist.json`, no per-account *polling* fan-out, no separate UI. (The pull
+fallback instead reads one curated X List by its id, `x.com/i/lists/<ID>`.)
+
+> **Why not a true "Following feed"?** It has no aggregated endpoint on the scraper, and
+> the official X API (2026: pay-per-use, $0.005/read, no following-timeline discount)
+> bills it at the full rate — so a following feed means cost that scales with how many
+> people you follow. Naming the accounts in a rule (or a List) also keeps growth targets
+> separate from the noise of who you follow personally.
 
 ---
 
@@ -255,5 +268,10 @@ id. No `watchlist.json`, no per-account fan-out, no separate UI — ever.
 - Pushover API/pricing: <https://pushover.net/api> · <https://pushover.net/pricing>
 - X web intents (reply link): <https://docs.x.com/x-for-websites/web-intents/overview>
 - Indie cost analysis: <https://superframeworks.com/articles/x-api-pay-per-use-pricing-indie-hackers>
+- twitterapi.io filter-rule / webhook push (verified for the push pivot):
+  <https://docs.twitterapi.io/api-reference/endpoint/add_webhook_rule> ·
+  <https://twitterapi.io/blog/using-webhooks-for-real-time-twitter-data> ·
+  <https://twitterapi.io/tweet-filter-rules>
+- Cloudflare Workers + KV (free tier, webhook receiver): <https://developers.cloudflare.com/workers/>
 </content>
 </invoke>

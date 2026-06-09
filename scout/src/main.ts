@@ -5,20 +5,11 @@
  *   npm start           # uses process.env
  */
 
-import { loadEnv, ConfigError, type NotifierConfig } from './config';
+import { loadEnv, ConfigError } from './config';
 import { ScraperSource } from './sources/ScraperSource';
-import { PushoverNotifier } from './notify/PushoverNotifier';
-import { TelegramNotifier } from './notify/TelegramNotifier';
-import type { Notifier } from './notify/Notifier';
 import { FileAlertStore } from './store/FileAlertStore';
+import { buildNotifier } from './notify/factory';
 import { runScout } from './pipeline';
-
-function buildNotifier(cfg: NotifierConfig): Notifier {
-    if (cfg.kind === 'telegram') {
-        return new TelegramNotifier({ botToken: cfg.botToken, chatId: cfg.chatId });
-    }
-    return new PushoverNotifier({ token: cfg.token, user: cfg.user });
-}
 
 export async function main(): Promise<number> {
     let env;

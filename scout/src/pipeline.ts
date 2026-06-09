@@ -1,40 +1,48 @@
 /**
  * The Scout pipeline — the core loop:
- *   fetch → keep fresh originals → score → threshold → dedup → notify → remember
+ *   (fetch) → keep fresh originals → score → threshold → dedup → notify → remember
  *
- * Every dependency is injected (source, notifier, store, clock) so the whole
+ * `processBatch` is the single authority on "original + fresh + scored + deduped":
+ * it takes an already-collected batch of tweets and is shared by BOTH entry points —
+ * `runScout` (pull: cron polls a List) and the webhook handler (push: tweets arrive
+ * in real time). Every dependency is injected (notifier, store, clock) so the whole
  * thing is deterministic and unit-tested without any network or real time.
  */
 
 import type { ScoutConfig, RunSummary, WatchSource, ScoredTweet } from './types';
-import type { TweetSource } from './sources/TweetSource';
+import type { TweetSource, SourceTweet } from './sources/TweetSource';
 import type { Notifier } from './notify/Notifier';
 import type { AlertStore } from './store/AlertStore';
 import { scoreTweet } from './scoring';
 import { buildAlert } from './notify/Notifier';
 
-export interface PipelineDeps {
-    source: TweetSource;
+/** Deps for processing a batch — no source needed (the batch is already in hand). */
+export interface BatchDeps {
     notifier: Notifier;
     store: AlertStore;
     config: ScoutConfig;
-    /** Injectable clock for deterministic tests. */
-    now?: () => number;
     /** Optional logger. */
     log?: (msg: string) => void;
 }
 
-export async function runScout(watch: WatchSource, deps: PipelineDeps): Promise<RunSummary> {
-    const now = deps.now ?? (() => Date.now());
-    const at = now();
-    const { source, notifier, store, config } = deps;
+export interface PipelineDeps extends BatchDeps {
+    source: TweetSource;
+    /** Injectable clock for deterministic tests. */
+    now?: () => number;
+}
+
+/**
+ * Process an already-collected batch of candidate tweets through the full
+ * score → threshold → dedup → notify → remember loop. `at` is the run clock.
+ */
+export async function processBatch(fetched: SourceTweet[], deps: BatchDeps, at: number): Promise<RunSummary> {
+    const { notifier, store, config } = deps;
     const log = deps.log ?? (() => {});
 
     // Housekeeping: forget stale dedup entries.
     store.prune(at - config.dedupRetentionMs);
 
-    const fetched = await source.fetchRecentOriginals(watch, config.freshnessMinutes);
-    log(`fetched ${fetched.length} fresh originals`);
+    log(`processing ${fetched.length} candidates`);
 
     const freshCutoff = at - config.freshnessMinutes * 60 * 1000;
 
@@ -90,4 +98,11 @@ export async function runScout(watch: WatchSource, deps: PipelineDeps): Promise<
         alerted: alerted.length,
         alerts: alerted
     };
+}
+
+/** Pull entry point: poll a watched List/source, then process the batch. */
+export async function runScout(watch: WatchSource, deps: PipelineDeps): Promise<RunSummary> {
+    const at = (deps.now ?? (() => Date.now()))();
+    const fetched = await deps.source.fetchRecentOriginals(watch, deps.config.freshnessMinutes);
+    return processBatch(fetched, deps, at);
 }

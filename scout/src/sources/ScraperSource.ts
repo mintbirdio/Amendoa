@@ -58,6 +58,7 @@ export interface RawTweet {
 
 export interface RawAuthor {
     userName?: string;
+    username?: string;       // webhook push payload uses lowercase
     screen_name?: string;
     name?: string;
     followers?: number;
@@ -157,7 +158,7 @@ export function mapRawTweet(rt: RawTweet): SourceTweet | null {
     if (!tweetId) return null;
 
     const author = rt.author ?? rt.user ?? {};
-    const handle = firstStr(author.userName, author.screen_name);
+    const handle = firstStr(author.userName, author.username, author.screen_name);
     if (!handle) return null;
 
     const postedAt = resolvePostedAt(rt, tweetId);

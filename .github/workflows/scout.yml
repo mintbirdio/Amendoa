@@ -1,40 +1,55 @@
 name: Amendoa Scout
 
-# Polls the watched X List, scores tweets, and pushes high-value reply alerts
-# to your phone. Runs on a schedule; the dedup state is carried between runs via
-# the Actions cache so a tweet is never alerted twice.
+# Scout runs in PUSH mode: a twitterapi.io filter rule webhooks new tweets to a
+# Cloudflare Worker (see scout/wrangler.toml), so there is no scheduled poll to run
+# here. This workflow therefore:
+#   • ci   — typechecks + tests Scout on every push/PR (always)
+#   • poll — the pull-mode FALLBACK poller, manual (workflow_dispatch) only
 #
-# Required secret:   SCRAPER_API_KEY
-# One notifier (free Telegram, or Pushover):
-#   secrets TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID, or PUSHOVER_TOKEN + PUSHOVER_USER
-# Required variable: WATCH_LIST_ID  (an X List id)
-# Optional variables: NOTIFIER, MIN_SCORE, FRESHNESS_MINUTES, MAX_ALERTS_PER_RUN,
-#                     DEDUP_RETENTION_DAYS, SCRAPER_BASE_URL
+# Fallback poll secrets:   SCRAPER_API_KEY + a notifier (TELEGRAM_* or PUSHOVER_*)
+# Fallback poll variable:  WATCH_LIST_ID  (an X List id)
 
 on:
-  schedule:
-    - cron: '*/5 * * * *'   # every 5 minutes (GitHub's minimum)
-  workflow_dispatch:         # allow manual runs for testing
-
-concurrency:
-  group: scout
-  cancel-in-progress: false
+  push:
+    paths: ['scout/**', '.github/workflows/scout.yml']
+  pull_request:
+    paths: ['scout/**', '.github/workflows/scout.yml']
+  workflow_dispatch:   # manual trigger for the fallback poll
 
 jobs:
-  poll:
+  ci:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-
       - name: Install Scout deps
         working-directory: scout
         run: npm ci
+      - name: Typecheck
+        working-directory: scout
+        run: npm run typecheck
+      - name: Test
+        working-directory: scout
+        run: npm test
 
+  poll:
+    # Pull-mode fallback only — never scheduled (push mode is primary).
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: scout-poll
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Scout deps
+        working-directory: scout
+        run: npm ci
       - name: Restore dedup state
         uses: actions/cache@v4
         with:
@@ -42,8 +57,7 @@ jobs:
           key: scout-state-${{ github.run_id }}
           restore-keys: |
             scout-state-
-
-      - name: Run Scout
+      - name: Run Scout (poll a List once)
         working-directory: scout
         env:
           SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
