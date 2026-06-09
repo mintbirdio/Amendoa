@@ -77,20 +77,28 @@ user replies manually.**
   or a **Telegram bot** (free). Both ride Apple's push via a polished app. A home-screen
   PWA can do web push (iOS 16.4+) but must be added to the home screen and has reported
   reliability quirks — fine for a later version, not v0.
-- **Tap-to-reply link:** X documents a web intent
-  `https://x.com/intent/tweet?in_reply_to=<tweet_id>&text=...` that should open the
-  reply composer pre-aimed at the tweet from a notification. Rock-solid fallback: the
-  plain permalink `https://x.com/<user>/status/<id>` opens the X app on the tweet (one
-  tap to reply). The legacy `twitter://` scheme is unverified in 2026 — don't depend on it.
+- **Tap-to-reply link — ✅ VERIFIED (Jun 2026, physical iPhone):** the **plain permalink
+  `https://x.com/<user>/status/<id>`** opens the **X app directly on the tweet** (one tap
+  to reply) when tapped as a real link. A push-notification tap is the same iOS context as
+  tapping a link in Messages, so this is the production path. **Use the bare permalink** —
+  nothing fancier is needed or works better:
+  - The web **intent** link (`intent/tweet?in_reply_to=`) is a dead end on iOS — it opens
+    Safari into a **logged-out login wall**. Do not use.
+  - The legacy **`twitter://` scheme** is not needed (and Notes/Safari won't even linkify it).
+  - ⚠️ **Testing caveat for future-you:** Universal Links only fire from a *real link tap*
+    (Messages, a notification). Pasting the URL into Safari's **address bar never triggers
+    the app** — that always shows the logged-out web page. Don't mistake that for the link
+    being broken.
 - Sources: <https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/>,
   <https://docs.x.com/x-for-websites/web-intents/overview>, <https://pushover.net/api>
 
-### 3.4 ⚠️ Two things to verify on a physical iPhone before building the tap flow
-1. Does `intent/tweet?in_reply_to=` open the **reply** composer (vs a blank one) on the
-   current X build?
-2. Does the permalink reliably open the X app for you?
+### 3.4 ✅ On-device verification — DONE (Jun 9 2026)
+Tested on a physical iPhone:
+- **Permalink → X app on the tweet: WORKS** (tapped from Messages). This is the flow.
+- **Intent reply link: FAILS** (Safari login wall). Dropped from the design.
+- **Address-bar / Notes-plaintext tests are invalid** and gave false negatives — see §3.3.
 
-Both are 30-second tests. No source could confirm against the latest X build.
+The tap flow is settled: **notification → tap permalink → tweet in X app → reply by hand.**
 
 ---
 
@@ -187,13 +195,14 @@ threshold within its freshness window.
 
 ## 6. v0 build plan (milestones)
 
-- [ ] **M0 — On-device check.** Verify the two iPhone link behaviors in §3.4. (No code.)
+- [x] **M0 — On-device check.** ✅ Done (§3.4): permalink deep-links into the X app; intent
+      link is dead. Tap flow settled.
 - [ ] **M1 — Data adapter.** `ScraperSource implements TweetSource`; read one **X List
       timeline** by id, map JSON → `TweetData`. Log scored output. (Local run.)
 - [ ] **M2 — Scoring reuse.** Import `scoreEngine.ts`; run `calculateOpportunityScore`
       server-side with `target = null`; confirm HOT/HIGH badges look right.
-- [ ] **M3 — Notifier.** `PushoverNotifier` (or Telegram); send one alert with a working
-      `intent/tweet?in_reply_to=` link + permalink fallback. Confirm tap → reply on phone.
+- [ ] **M3 — Notifier.** `PushoverNotifier` (or Telegram); send one alert whose tap URL is
+      the **bare permalink** `https://x.com/<user>/status/<id>`. Confirm tap → tweet in app.
 - [ ] **M4 — Dedup + threshold.** Persist alerted IDs; only push HOT, once.
 - [ ] **M5 — Scheduler.** GitHub Actions cron every 5 min; the watched **List ID** (one
       value) + secrets (scraper key, Pushover token) in repo secrets/vars.
