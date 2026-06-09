@@ -30,8 +30,8 @@ has no growth value — and it must be **cheap**.
 ## 2. The product loop
 
 ```
-Watchlist (50–200 target accounts)
-  → cloud poller fetches their fresh ORIGINAL posts (every ~5 min)
+An X List you already curate ("Growth targets") OR your Following feed
+  → cloud poller fetches its timeline's fresh ORIGINAL posts (every ~5 min)
   → scoreEngine.ts ranks each: reach × freshness × low-competition
   → when a post crosses HOT, push an alert to the iPhone
   → tap notification → X app opens on that tweet → reply early, by hand
@@ -154,17 +154,23 @@ once) ≈ ~$5/month.**
 ```ts
 // The ONLY thing that changes when you move scraper → official API.
 export interface TweetSource {
-  /** Fresh original posts (no replies/retweets) from these handles, newest first. */
-  fetchRecentOriginals(handles: string[], sinceMinutes: number): Promise<TweetData[]>;
+  /** Fresh original posts (no replies/retweets) from a source's timeline, newest first.
+   *  source = an X List id ("list:1234...") or the Following feed ("following").
+   *  No per-account fan-out: one fetch returns the whole curated timeline. */
+  fetchRecentOriginals(source: WatchSource, sinceMinutes: number): Promise<TweetData[]>;
 }
+
+type WatchSource =
+  | { kind: "list"; listId: string }      // GET /2/lists/:id/tweets
+  | { kind: "following"; userId: string }; // GET /2/users/:id/timelines/reverse_chronological
 
 // TweetData is ALREADY defined in src/services/scoreEngine.ts — reuse it verbatim:
 //   tweetId, authorHandle, postedAt, likes, retweets, replies, views,
 //   isReply, isThread, authorFollowerCount?, authorIsPremium?
 
-class ScraperSource implements TweetSource { /* v0: cheap scraper API */ }
-class OfficialXSource implements TweetSource { /* later: GET /2/tweets/search/recent,
-                                                  batched "from:a OR from:b ..." */ }
+class ScraperSource implements TweetSource { /* v0: cheap scraper, list/following timeline */ }
+class OfficialXSource implements TweetSource { /* later: List Tweets lookup /
+                                                  reverse_chronological timeline */ }
 ```
 
 `scoreEngine.ts` is **already pure TypeScript** — only two helpers touch the browser DB
@@ -182,21 +188,26 @@ threshold within its freshness window.
 ## 6. v0 build plan (milestones)
 
 - [ ] **M0 — On-device check.** Verify the two iPhone link behaviors in §3.4. (No code.)
-- [ ] **M1 — Data adapter.** `ScraperSource implements TweetSource`; map scraper JSON →
-      `TweetData`. Hard-code 5 handles, log scored output. (Local run.)
+- [ ] **M1 — Data adapter.** `ScraperSource implements TweetSource`; read one **X List
+      timeline** by id, map JSON → `TweetData`. Log scored output. (Local run.)
 - [ ] **M2 — Scoring reuse.** Import `scoreEngine.ts`; run `calculateOpportunityScore`
       server-side with `target = null`; confirm HOT/HIGH badges look right.
 - [ ] **M3 — Notifier.** `PushoverNotifier` (or Telegram); send one alert with a working
       `intent/tweet?in_reply_to=` link + permalink fallback. Confirm tap → reply on phone.
 - [ ] **M4 — Dedup + threshold.** Persist alerted IDs; only push HOT, once.
-- [ ] **M5 — Scheduler.** GitHub Actions cron every 5 min; watchlist in a committed
-      `watchlist.json`; secrets (scraper key, Pushover token) in repo secrets.
+- [ ] **M5 — Scheduler.** GitHub Actions cron every 5 min; the watched **List ID** (one
+      value) + secrets (scraper key, Pushover token) in repo secrets/vars.
 - [ ] **M6 — Tune.** Adjust HOT threshold + freshness window so you get ~10–30
       high-quality pings/day, not noise.
 
-### Watchlist management (v0)
-A committed `watchlist.json` of handles — edit on github.com from your phone, the next
-cron run picks it up. No UI needed for v0.
+### Watchlist management (v0) — don't build one, reuse X's
+**First principle: nobody wants to build a watchlist from scratch.** X Lists already
+*are* curated watchlists. Make one List in the X app called "Growth targets," and Scout
+reads its timeline directly via the List id (found in the list's URL,
+`x.com/i/lists/<ID>`). You curate it natively on your phone; Scout needs only that one
+id. No `watchlist.json`, no per-account fan-out, no separate UI — ever. (Following feed
+works too via the reverse-chronological timeline endpoint, but a dedicated List keeps
+growth targets separate from the noise of who you follow personally.)
 
 ---
 
