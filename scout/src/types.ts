@@ -19,7 +19,9 @@ export type { TweetData, ScoreBadge, ScoreComponents };
  * follows into a List instead.
  */
 export type WatchSource =
-    | { kind: 'list'; listId: string };
+    | { kind: 'list'; listId: string; userId?: string };
+//                                    ^ optional: which user this watch belongs to,
+//   so the credential provider can attribute/scope reads per user in Phase 1+.
 
 /** A tweet plus its computed opportunity score, ready to (maybe) alert on. */
 export interface ScoredTweet {
