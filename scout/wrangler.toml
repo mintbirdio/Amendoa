@@ -1,26 +1,43 @@
-# Cloudflare Worker config for Scout's webhook receiver (push mode).
+# Cloudflare Worker config for Scout (official X API · poll + Telegram cockpit).
 #
-# Deploy:
-#   1. npx wrangler kv namespace create DEDUP_KV   # paste the id below
-#   2. npx wrangler secret put SCRAPER_API_KEY      # twitterapi.io key (also the webhook secret)
-#   3. npx wrangler secret put TELEGRAM_BOT_TOKEN
-#   4. npx wrangler secret put TELEGRAM_CHAT_ID
+# One-time setup (see README "Going live"):
+#   1. npx wrangler kv namespace create DEDUP_KV        # paste id below
+#   2. npx wrangler d1 create scout-db                  # paste database_id below
+#   3. npm run db:init                                  # create the D1 tables
+#   4. npx wrangler secret put X_CLIENT_ID              # (+ X_REFRESH_TOKEN from `npm run x-auth`)
+#      npx wrangler secret put X_REFRESH_TOKEN
+#      npx wrangler secret put TELEGRAM_BOT_TOKEN
+#      npx wrangler secret put TELEGRAM_CHAT_ID
+#      npx wrangler secret put ANTHROPIC_API_KEY
+#      npx wrangler secret put TELEGRAM_WEBHOOK_SECRET  # any random string
 #   5. npx wrangler deploy
-#   6. Paste the deployed URL into twitterapi.io dashboard → Filter Rules → webhook
-#   7. npm run register-rule   (creates + activates the from:<accounts> rule)
+#   6. Set the Telegram webhook to https://<worker-url>/telegram with that secret
+#      (see README). Done — the cron polls and the cockpit is live.
 #
-# Free tier covers this comfortably (100k requests/day, 1k KV writes/day).
+# Cloudflare free tier covers this (cron, 100k req/day, D1, KV).
 
 name = "amendoa-scout"
 main = "src/worker.ts"
 compatibility_date = "2026-06-01"
 
+# Poll cadence. Cloudflare cron minimum granularity is 1 minute; with the X API's
+# 24h read-dedup, frequent polling is nearly free. Tighten/loosen as you like.
+[triggers]
+crons = ["*/1 * * * *"]
+
 [[kv_namespaces]]
 binding = "DEDUP_KV"
 id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
 
-# Non-secret tuning knobs. Secrets (SCRAPER_API_KEY, TELEGRAM_*) go via `wrangler secret put`.
+[[d1_databases]]
+binding = "DB"
+database_name = "scout-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+# Non-secret tuning knobs. Secrets (X_*, TELEGRAM_*, ANTHROPIC_API_KEY,
+# TELEGRAM_WEBHOOK_SECRET) go via `wrangler secret put`.
 [vars]
+DATA_SOURCE = "official"
 MIN_SCORE = "70"
 FRESHNESS_MINUTES = "60"
 MAX_ALERTS_PER_RUN = "10"

@@ -1,20 +1,15 @@
-name: Amendoa Scout
+name: Amendoa Scout CI
 
-# Scout runs in PUSH mode: a twitterapi.io filter rule webhooks new tweets to a
-# Cloudflare Worker (see scout/wrangler.toml), so there is no scheduled poll to run
-# here. This workflow therefore:
-#   • ci   — typechecks + tests Scout on every push/PR (always)
-#   • poll — the pull-mode FALLBACK poller, manual (workflow_dispatch) only
-#
-# Fallback poll secrets:   SCRAPER_API_KEY + a notifier (TELEGRAM_* or PUSHOVER_*)
-# Fallback poll variable:  WATCH_LIST_ID  (an X List id)
+# Scout's runtime is the Cloudflare Worker (cron poll + Telegram cockpit) — see
+# scout/wrangler.toml and scout/README.md. There is nothing to schedule here, so
+# this workflow is just CI: typecheck + the full test suite on every push/PR.
 
 on:
   push:
     paths: ['scout/**', '.github/workflows/scout.yml']
   pull_request:
     paths: ['scout/**', '.github/workflows/scout.yml']
-  workflow_dispatch:   # manual trigger for the fallback poll
+  workflow_dispatch:
 
 jobs:
   ci:
@@ -33,43 +28,3 @@ jobs:
       - name: Test
         working-directory: scout
         run: npm test
-
-  poll:
-    # Pull-mode fallback only — never scheduled (push mode is primary).
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    concurrency:
-      group: scout-poll
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Install Scout deps
-        working-directory: scout
-        run: npm ci
-      - name: Restore dedup state
-        uses: actions/cache@v4
-        with:
-          path: scout/.scout-state
-          key: scout-state-${{ github.run_id }}
-          restore-keys: |
-            scout-state-
-      - name: Run Scout (poll a List once)
-        working-directory: scout
-        env:
-          SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
-          SCRAPER_BASE_URL: ${{ vars.SCRAPER_BASE_URL }}
-          NOTIFIER: ${{ vars.NOTIFIER }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          PUSHOVER_TOKEN: ${{ secrets.PUSHOVER_TOKEN }}
-          PUSHOVER_USER: ${{ secrets.PUSHOVER_USER }}
-          WATCH_LIST_ID: ${{ vars.WATCH_LIST_ID }}
-          MIN_SCORE: ${{ vars.MIN_SCORE }}
-          FRESHNESS_MINUTES: ${{ vars.FRESHNESS_MINUTES }}
-          MAX_ALERTS_PER_RUN: ${{ vars.MAX_ALERTS_PER_RUN }}
-          DEDUP_RETENTION_DAYS: ${{ vars.DEDUP_RETENTION_DAYS }}
-        run: npm start

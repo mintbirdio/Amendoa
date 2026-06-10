@@ -1,38 +1,43 @@
 # Amendoa Scout
 
-Phone-native reply radar. Scout watches the X accounts you care about, scores every
-fresh original post with the **same Opportunity Score engine as the desktop
-extension**, and pushes the high-value, low-competition ones to your iPhone. Tap the
-notification → it deep-links into the X app on the tweet → you reply early, by hand.
+Phone-native reply radar + voice-matched draft assistant. Scout watches the X accounts
+you care about, scores every fresh original post with the **same Opportunity Score
+engine as the desktop extension**, pushes the high-value, low-competition ones to your
+phone via Telegram, and — on demand — drafts a reply **in your voice** with Claude
+Opus that you review and post by hand. It records every alert → reply → outcome so you
+can prove (or kill) the growth hypothesis with data.
 
-See [`../AMENDOA-SCOUT.md`](../AMENDOA-SCOUT.md) for the full product brief, the 2026
-research, and the first-principles cost analysis.
+See [`../AMENDOA-SCOUT.md`](../AMENDOA-SCOUT.md) for the product brief, the 2026 research,
+the provider analysis (why the official X API), and the first-principles cost work.
 
-## How it works — push, not poll
-
-The data path is the cheap part *if you let the data come to you*. A
-[twitterapi.io filter rule](https://docs.twitterapi.io/api-reference/endpoint/add_webhook_rule)
-(`(from:acct1 OR from:acct2 …) -filter:retweets -filter:replies`) pushes each watched
-account's new original tweet to a tiny Cloudflare Worker — **once per tweet, no
-re-scanning**. So cost tracks the new tweets you actually receive (~$1/mo) and alerts
-land sub-second.
+## How it works
 
 ```
-filter rule → webhook → Worker → scoreTweet (shared brain) → threshold + KV dedup
-                                                            → Telegram/Pushover → 📱
+Cron (Cloudflare Worker, every ~1 min)
+  → OfficialXSource reads your X List's fresh originals (official API; 24h read-dedup ≈ free)
+  → scoreTweet (shared brain): reach × freshness × low-competition
+  → ≥ MIN_SCORE & fresh & not already alerted (KV dedup)
+  → Telegram alert with buttons: [Reply on X] [✍️ Draft] [👎 Skip]
+        tap Draft → Opus 4.8 drafts replies in your voice → [✅ Used it] [🔁 Regenerate] [👎 Skip]
+  → every alert/action/outcome recorded to D1 (the proof data)
 ```
 
-Every piece is behind an interface, so it's swappable and testable:
+Manual replies only — X blocks programmatic replies (Feb 2026), and monitoring +
+drafting-for-a-human is the compliant path. Scout never posts for you.
 
-| Seam | implementation | Swap later |
-|------|-------------------|------------|
-| ingest | webhook Worker (push) · `ScraperSource` List poll (pull fallback) | `OfficialXSource` |
-| `Notifier` | `TelegramNotifier` (free) or `PushoverNotifier` | web-push |
-| `AlertStore` | `KvAlertStore` (Cloudflare KV, push) · `FileAlertStore` (cron fallback) | — |
+### Architecture (every seam is swappable + tested)
+
+| Seam | Implementation | Swap path |
+|------|----------------|-----------|
+| `TweetSource` | `OfficialXSource` (official X API) · `ScraperSource` (cheap fallback) | shared `mapTweet` mapper |
+| `CredentialProvider` | `RefreshingCredentialProvider` (owner OAuth) | per-user BYO key → shared pool |
+| `Notifier` | `TelegramNotifier` (cockpit buttons) · `PushoverNotifier` | — |
+| `AlertStore` | `KvAlertStore` (Worker) · `FileAlertStore` (local) | — |
+| `MeasurementStore` | `D1MeasurementStore` · `InMemoryMeasurementStore` | — |
+| `LlmClient` | `AnthropicLlmClient` (Opus 4.8) | — |
 
 The scoring brain is **not forked** — it lives in [`../src/shared/scoring.ts`](../src/shared/scoring.ts)
-and is imported by both the extension and Scout. `processBatch` (in `pipeline.ts`) is the
-single score → threshold → dedup → notify authority shared by both ingest paths.
+and is imported by both the extension and Scout.
 
 ## Local development
 
@@ -40,63 +45,69 @@ single score → threshold → dedup → notify authority shared by both ingest 
 cd scout
 npm install
 npm run typecheck   # tsc --noEmit
-npm test            # vitest — 79 tests, all mocked (no API keys, no network)
+npm test            # vitest — 134 tests, fully mocked (no keys, no network)
 ```
 
-## Going live (push mode, ~$1/mo, $0 infra)
+## Going live (≈20 min — then it just runs)
 
-You need a twitterapi.io key, a free notifier, and a free Cloudflare account.
+You provide three API credentials; Scout wires the rest.
 
-1. **twitterapi.io key** → `SCRAPER_API_KEY`. This doubles as the webhook secret:
-   twitterapi.io echoes it as `X-API-Key` on every push, and the Worker verifies it.
-2. **A notifier** (Scout auto-detects, or set `NOTIFIER=telegram|pushover`):
-   - **Telegram (free, recommended):** message [@BotFather](https://t.me/BotFather) → `/newbot`
-     → `TELEGRAM_BOT_TOKEN`. Message your bot once, read your chat id from
-     `https://api.telegram.org/bot<token>/getUpdates` → `TELEGRAM_CHAT_ID`. Alerts arrive
-     with a tappable **Reply on X** button.
-   - **Pushover ($4.99 once):** app token → `PUSHOVER_TOKEN`, user key → `PUSHOVER_USER`.
-3. **Deploy the Worker** (see [`wrangler.toml`](wrangler.toml) for the exact commands):
-   ```bash
-   npx wrangler kv namespace create DEDUP_KV   # paste the id into wrangler.toml
-   npx wrangler secret put SCRAPER_API_KEY
-   npx wrangler secret put TELEGRAM_BOT_TOKEN
-   npx wrangler secret put TELEGRAM_CHAT_ID
-   npx wrangler deploy                         # prints your Worker URL
-   ```
-4. **Point the rule at the Worker:** paste the Worker URL into the twitterapi.io
-   dashboard → **Filter Rules** → webhook destination.
-5. **Register the accounts you watch:**
-   ```bash
-   SCRAPER_API_KEY=... WATCH_HANDLES="elonmusk, naval, paulg" npm run register-rule
-   ```
-   This packs your handles into the fewest 255-char rules, creates each, and activates
-   them. Re-run any time your watch list changes.
+**1. X API (official, pay-per-use).** Create a developer app at developer.x.com with
+**OAuth 2.0** enabled (type Native/Public; add `http://127.0.0.1/callback` as a callback).
+Then mint a refresh token:
+```bash
+X_CLIENT_ID=<your-client-id> npm run x-auth      # click Authorize once, paste the redirect back
+```
+It prints `X_CLIENT_ID` + `X_REFRESH_TOKEN`.
 
-That's it — new originals from those accounts now ping your phone in real time.
+**2. Telegram (free).** Message [@BotFather](https://t.me/BotFather) → `/newbot` → bot token.
+Message your new bot once, then read your chat id from
+`https://api.telegram.org/bot<token>/getUpdates` (`message.chat.id`).
 
-> **Why push beats a List poll.** Polling re-reads the same ~20 tweets every few
-> minutes just to notice the new one — ~29× more reads than the irreducible "read each
-> new tweet once" floor. Pushing a filter rule pays that floor (~$1/mo) *and* delivers
-> sub-second instead of up-to-poll-interval late. See the Idiot Index analysis in the
-> [brief](../AMENDOA-SCOUT.md).
+**3. Anthropic.** Get a key at console.anthropic.com (for the Draft button).
 
-## Fallback: cron poll of a single List
+**4. Cloudflare resources + deploy:**
+```bash
+npx wrangler kv namespace create DEDUP_KV     # paste id → wrangler.toml
+npx wrangler d1 create scout-db               # paste database_id → wrangler.toml
+npm run db:init                               # create D1 tables (migrations/0001_init.sql)
 
-If you'd rather not run a Worker, the pull path still works: set `WATCH_LIST_ID` (the id
-from `x.com/i/lists/<ID>`) and run `npm start`, or trigger the **poll** job in
-[`.github/workflows/scout.yml`](../.github/workflows/scout.yml) via *workflow_dispatch*.
-This costs ~$26/mo at 5-min cadence and tops out at poll-interval latency — fine for a
-quick start, but push is strictly better once you're committed.
+npx wrangler secret put X_CLIENT_ID
+npx wrangler secret put X_REFRESH_TOKEN
+npx wrangler secret put TELEGRAM_BOT_TOKEN
+npx wrangler secret put TELEGRAM_CHAT_ID
+npx wrangler secret put ANTHROPIC_API_KEY
+npx wrangler secret put TELEGRAM_WEBHOOK_SECRET   # any random string
+
+# set WATCH_LIST_ID (the id in x.com/i/lists/<ID>) as a var or secret
+npx wrangler deploy
+```
+
+**5. Point Telegram at the cockpit** (one curl, using the same secret):
+```bash
+curl "https://api.telegram.org/bot<token>/setWebhook" \
+  -d "url=https://<your-worker-url>/telegram" \
+  -d "secret_token=<TELEGRAM_WEBHOOK_SECRET>"
+```
+
+Done. The cron polls your List every minute, alerts fire to Telegram with a Draft
+button, and the proof data accumulates in D1.
 
 ## Tuning
 
-| Env var | Default | Effect |
-|---------|---------|--------|
+| Var | Default | Effect |
+|-----|---------|--------|
 | `MIN_SCORE` | `70` | Higher = fewer, hotter alerts |
 | `FRESHNESS_MINUTES` | `60` | Ignore tweets older than this |
-| `MAX_ALERTS_PER_RUN` | `10` | Anti-spam cap per delivery |
+| `MAX_ALERTS_PER_RUN` | `10` | Anti-spam cap per poll |
 | `DEDUP_RETENTION_DAYS` | `7` | How long a tweet stays "already alerted" (KV TTL) |
 
-Aim for ~10–30 quality pings/day. If it's noisy, raise `MIN_SCORE`; if it's quiet,
-lower it or add accounts to the rule. **Set a spend cap in the twitterapi.io dashboard** —
-billing starts when a rule is active, regardless of whether your Worker is connected.
+Aim for ~10–30 quality pings/day. **Set a spend cap in the X developer console** —
+at one user the official API is a few dollars/month (your watchlist reads at $0.005,
+deduped daily; your own replies at the $0.001 owned rate).
+
+## Cost (personal, one user)
+
+X API reads ~$10–30/mo depending on List size · Anthropic ~$1–5/mo (on-demand drafts,
+cached voice prefix) · Cloudflare + Telegram free. **~$15–35/mo all-in** for a legit,
+zero-ban-risk, fully-instrumented tool.
