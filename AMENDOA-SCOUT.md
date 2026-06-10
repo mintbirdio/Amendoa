@@ -11,6 +11,34 @@ between sessions and can be built against later.
 
 ---
 
+## 0. Status — v1 BUILT (official X API), supersedes the push design below
+
+The app is built, tested (142 passing), and deploy-ready in [`scout/`](scout/). After
+the provider analysis (§ research) we chose the **official X API** over scrapers for
+legitimacy, and after the realtime council we chose **polling over the filtered stream**
+for Phase-0 (24h read-dedup makes polling nearly free; no always-on host; crash-proof).
+The earlier twitterapi.io **push** design in §2/§5 below is **historical** — kept for the
+reasoning trail. As-built architecture:
+
+```
+Cloudflare Worker cron (~1 min)
+  → OfficialXSource reads the watched List (official API; injectable CredentialProvider)
+  → scoreTweet (shared brain) → MIN_SCORE + freshness + KV dedup
+  → Telegram alert with cockpit buttons: [Reply on X] [✍️ Draft] [👎 Skip]
+        Draft → Opus 4.8 drafts in your voice → [✅ Used it] [🔁 Regenerate] [👎 Skip]
+  → D1 records every alert/action/outcome (the proof data)
+Daily cron (09:00 UTC)
+  → owned-reads sweep: match your replies → alerts, record outcomes + follower trend,
+    learn your strongest replies into the voice profile
+```
+
+Seams (all tested, all swappable): `TweetSource` (Official/Scraper), `CredentialProvider`
+(owner→BYO→pool), `Notifier` (Telegram cockpit/Pushover), `AlertStore` (KV/File),
+`MeasurementStore` (D1/in-memory), `LlmClient` (Opus 4.8). Go-live in
+[`scout/README.md`](scout/README.md). Milestones M0–M11 complete (§6).
+
+---
+
 ## 1. Why a separate product (and not "the extension on a phone")
 
 The desktop extension works by sitting inside the x.com browser tab and reading X's
