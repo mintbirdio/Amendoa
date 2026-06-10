@@ -1,90 +1,92 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import worker, { type WorkerBindings } from '../src/worker';
 import type { KvLike } from '../src/store/KvAlertStore';
+import type { D1Like, D1Stmt } from '../src/measure/D1MeasurementStore';
 
-function fakeKv() {
+function fakeKv(): KvLike {
     const map = new Map<string, string>();
-    const kv: KvLike & { map: Map<string, string> } = {
-        map,
+    return {
         async get(k) { return map.get(k) ?? null; },
         async put(k, v) { map.set(k, v); }
     };
-    return kv;
+}
+
+function fakeD1() {
+    const runs: Array<{ sql: string; binds: unknown[] }> = [];
+    const db: D1Like = {
+        prepare(sql: string): D1Stmt {
+            let binds: unknown[] = [];
+            const stmt: D1Stmt = {
+                bind(...v) { binds = v; return stmt; },
+                async run() { runs.push({ sql, binds }); return {}; },
+                async all<T>() { return { results: [] as T[] }; },
+                async first<T>() { return null as T | null; }
+            };
+            return stmt;
+        }
+    };
+    return { db, runs };
 }
 
 function env(over: Partial<WorkerBindings> = {}): WorkerBindings {
     return {
-        SCRAPER_API_KEY: 'secret',
-        TELEGRAM_BOT_TOKEN: 'b',
-        TELEGRAM_CHAT_ID: 'c',
+        TELEGRAM_BOT_TOKEN: 'B',
+        TELEGRAM_CHAT_ID: 'C',
+        TELEGRAM_WEBHOOK_SECRET: 'shh',
+        ANTHROPIC_API_KEY: 'sk-test',
+        WATCH_LIST_ID: 'L1',
+        X_BEARER_TOKEN: 'tok',
         DEDUP_KV: fakeKv(),
+        DB: fakeD1().db,
         ...over
     };
 }
 
-function hotTweet(id = '900') {
-    return {
-        id,
-        text: 'big launch thread',
-        created_at: new Date().toISOString(),
-        like_count: 3, retweet_count: 0, reply_count: 0,
-        author: { username: 'titan', name: 'Titan', followers: 250_000, isBlueVerified: true }
-    };
+function tgPost(body: unknown, secret = 'shh') {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (secret) headers['X-Telegram-Bot-Api-Secret-Token'] = secret;
+    return new Request('https://scout.example/telegram', { method: 'POST', headers, body: JSON.stringify(body) });
 }
 
-function post(body: unknown, headers: Record<string, string> = { 'X-API-Key': 'secret' }) {
-    return new Request('https://scout.example/webhook', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...headers },
-        body: JSON.stringify(body)
-    });
-}
-
-describe('worker fetch handler', () => {
-    let sendSpy: ReturnType<typeof vi.fn>;
-
+describe('worker.fetch routing', () => {
     beforeEach(() => {
-        // Stub the Telegram HTTP call the notifier makes via global fetch.
-        sendSpy = vi.fn(async () => ({ ok: true, status: 200, async text() { return ''; }, async json() { return {}; } }));
-        vi.stubGlobal('fetch', sendSpy);
+        vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, async text() { return ''; }, async json() { return {}; } })));
     });
     afterEach(() => vi.unstubAllGlobals());
 
-    it('rejects non-POST', async () => {
-        const res = await worker.fetch(new Request('https://scout.example/', { method: 'GET' }), env());
-        expect(res.status).toBe(405);
+    it('serves /health', async () => {
+        const res = await worker.fetch(new Request('https://scout.example/health'), env());
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ ok: true });
     });
 
-    it('rejects a missing/wrong shared secret', async () => {
-        const res = await worker.fetch(post({ event_type: 'tweet', tweets: [hotTweet()] }, {}), env());
+    it('rejects /telegram without the secret token', async () => {
+        const res = await worker.fetch(tgPost({ callback_query: { id: 'q', data: 'used:t1' } }, ''), env());
         expect(res.status).toBe(401);
-        expect(sendSpy).not.toHaveBeenCalled();
     });
 
-    it('scores, alerts, and persists a hot tweet', async () => {
-        const e = env();
-        const res = await worker.fetch(post({ event_type: 'tweet', tweets: [hotTweet()] }), e);
+    it('400s on invalid JSON', async () => {
+        const bad = new Request('https://scout.example/telegram', {
+            method: 'POST',
+            headers: { 'X-Telegram-Bot-Api-Secret-Token': 'shh' },
+            body: 'not json{'
+        });
+        expect((await worker.fetch(bad, env())).status).toBe(400);
+    });
+
+    it('dispatches a "used" callback → records a reply action', async () => {
+        const db = fakeD1();
+        const res = await worker.fetch(
+            tgPost({ callback_query: { id: 'q', data: 'used:t1', message: { chat: { id: 1 } } } }),
+            env({ DB: db.db })
+        );
         expect(res.status).toBe(200);
-        const body = await res.json() as { alerted: number; deduped: number };
-        expect(body.alerted).toBe(1);
-        expect(sendSpy).toHaveBeenCalledTimes(1);                 // one Telegram push
-        expect((e.DEDUP_KV as ReturnType<typeof fakeKv>).map.get('seen:900')).toBeDefined();
+        expect(await res.json()).toMatchObject({ ok: true, action: 'used', tweetId: 't1' });
+        expect(db.runs.some(r => /reply_action/.test(r.sql))).toBe(true);   // recorded to D1
     });
 
-    it('dedupes the same tweet across two deliveries (shared KV)', async () => {
-        const kv = fakeKv();
-        const e = env({ DEDUP_KV: kv });
-        const first = await worker.fetch(post({ event_type: 'tweet', tweets: [hotTweet()] }), e);
-        const second = await worker.fetch(post({ event_type: 'tweet', tweets: [hotTweet()] }), e);
-        expect((await first.json() as { alerted: number }).alerted).toBe(1);
-        expect((await second.json() as { alerted: number; deduped: number }).deduped).toBe(1);
-        expect(sendSpy).toHaveBeenCalledTimes(1);                 // only alerted once
-    });
-
-    it('ignores control frames without alerting', async () => {
-        const res = await worker.fetch(post({ event_type: 'connected' }), env());
-        expect(res.status).toBe(200);
-        expect((await res.json() as { alerted: number }).alerted).toBe(0);
-        expect(sendSpy).not.toHaveBeenCalled();
+    it('404s unknown routes', async () => {
+        const res = await worker.fetch(new Request('https://scout.example/nope'), env());
+        expect(res.status).toBe(404);
     });
 });

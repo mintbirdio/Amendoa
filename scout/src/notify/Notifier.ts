@@ -15,6 +15,8 @@ export interface Alert {
     urlTitle: string;
     /** 0-100 opportunity score, for priority mapping. */
     score: number;
+    /** Tweet id — lets a cockpit notifier attach Draft/Skip callback buttons. */
+    tweetId?: string;
 }
 
 export interface Notifier {
@@ -45,7 +47,8 @@ export function buildAlert(scored: ScoredTweet): Alert {
         message,
         url: tweetPermalink(tweet.authorHandle, tweet.tweetId),
         urlTitle: 'Reply on X',
-        score: scored.score
+        score: scored.score,
+        tweetId: tweet.tweetId
     };
 }
 

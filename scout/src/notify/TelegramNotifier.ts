@@ -40,14 +40,23 @@ export class TelegramNotifier implements Notifier {
 
     async send(alert: Alert): Promise<void> {
         const url = `${this.apiBase}/bot${this.botToken}/sendMessage`;
+
+        // Row 1: deep-link to the tweet. Row 2 (cockpit): on-demand Draft + Skip,
+        // handled by TelegramCockpit when the bot's webhook is wired.
+        const keyboard: Array<Array<Record<string, string>>> = [[{ text: alert.urlTitle, url: alert.url }]];
+        if (alert.tweetId) {
+            keyboard.push([
+                { text: '✍️ Draft a reply', callback_data: `draft:${alert.tweetId}` },
+                { text: '👎 Skip', callback_data: `skip:${alert.tweetId}` }
+            ]);
+        }
+
         const body = JSON.stringify({
             chat_id: this.chatId,
             text: `${alert.title}\n\n${alert.message}`,
             // Plain text (no parse_mode) so tweet content never breaks Markdown.
             disable_web_page_preview: true,
-            reply_markup: {
-                inline_keyboard: [[{ text: alert.urlTitle, url: alert.url }]]
-            }
+            reply_markup: { inline_keyboard: keyboard }
         });
 
         const res = await this.fetchFn(url, {
