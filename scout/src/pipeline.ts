@@ -13,6 +13,7 @@ import type { ScoutConfig, RunSummary, WatchSource, ScoredTweet } from './types'
 import type { TweetSource, SourceTweet } from './sources/TweetSource';
 import type { Notifier } from './notify/Notifier';
 import type { AlertStore } from './store/AlertStore';
+import type { AlertRecorder } from './measure/AlertRecorder';
 import { scoreTweet } from './scoring';
 import { buildAlert } from './notify/Notifier';
 
@@ -21,6 +22,8 @@ export interface BatchDeps {
     notifier: Notifier;
     store: AlertStore;
     config: ScoutConfig;
+    /** Optional measurement hook — records what we alerted on (the Phase-0 proof data). */
+    recorder?: AlertRecorder;
     /** Optional logger. */
     log?: (msg: string) => void;
 }
@@ -90,6 +93,15 @@ export async function processBatch(fetched: SourceTweet[], deps: BatchDeps, at: 
         await store.flush();
     }
     log(`alerted ${alerted.length} (${deduped} deduped, ${eligible.length} eligible)`);
+
+    // Record the proof data — never let a measurement failure break alerting.
+    if (deps.recorder && alerted.length) {
+        try {
+            await deps.recorder.record(alerted, at);
+        } catch (err) {
+            log(`recorder failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+    }
 
     return {
         fetched: fetched.length,
