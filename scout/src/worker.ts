@@ -28,6 +28,9 @@ import { DEFAULT_GUARDRAILS } from './voice/types';
 import { AnthropicLlmClient } from './llm/AnthropicLlmClient';
 import type { LlmClient } from './llm/LlmClient';
 import { processBatch } from './pipeline';
+import { XOwnedReads } from './xapi/OwnedReads';
+import { runSweep } from './measure/Sweep';
+import type { CredentialProvider } from './sources/Credentials';
 
 export interface WorkerBindings {
     // secrets / vars
@@ -57,27 +60,31 @@ export interface WorkerBindings {
 
 type EnvRecord = Record<string, string | undefined>;
 const REFRESH_KEY = 'x_refresh_token';
+const SWEEP_CRON = '0 9 * * *';   // daily learning + outcome pass
 
 function json(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-/** Build the data source; persist a rotated X refresh token to KV across runs. */
-async function buildSource(env: WorkerBindings): Promise<TweetSource> {
+/** Resolve the official X credential provider; persist rotated refresh tokens to KV. */
+async function buildCredential(env: WorkerBindings): Promise<CredentialProvider> {
     const ds = resolveDataSource(env as unknown as EnvRecord);
-    if (ds.kind === 'scraper') {
-        return new ScraperSource({ apiKey: ds.apiKey, baseUrl: ds.baseUrl });
-    }
+    if (ds.kind !== 'official') throw new ConfigError('owned reads require DATA_SOURCE=official');
     let credential = ds.credential;
     if (credential.mode === 'oauth') {
         const stored = await env.DEDUP_KV.get(REFRESH_KEY);
         if (stored) credential = { ...credential, refreshToken: stored };
     }
-    return new OfficialXSource({
-        credentials: buildCredentialProvider(credential, {
-            onRefresh: (t) => env.DEDUP_KV.put(REFRESH_KEY, t)
-        })
-    });
+    return buildCredentialProvider(credential, { onRefresh: (t) => env.DEDUP_KV.put(REFRESH_KEY, t) });
+}
+
+/** Build the data source. */
+async function buildSource(env: WorkerBindings): Promise<TweetSource> {
+    const ds = resolveDataSource(env as unknown as EnvRecord);
+    if (ds.kind === 'scraper') {
+        return new ScraperSource({ apiKey: ds.apiKey, baseUrl: ds.baseUrl });
+    }
+    return new OfficialXSource({ credentials: await buildCredential(env) });
 }
 
 function buildCockpit(env: WorkerBindings): TelegramCockpit {
@@ -95,8 +102,18 @@ function buildCockpit(env: WorkerBindings): TelegramCockpit {
 }
 
 export default {
-    /** Cron Trigger: one poll cycle. */
-    async scheduled(_event: unknown, env: WorkerBindings): Promise<void> {
+    /** Cron Triggers: the frequent poll, and a daily learning/outcome sweep. */
+    async scheduled(event: { cron?: string }, env: WorkerBindings): Promise<void> {
+        if (event?.cron === SWEEP_CRON) {
+            const res = await runSweep({
+                reads: new XOwnedReads({ credentials: await buildCredential(env) }),
+                store: new D1MeasurementStore(env.DB),
+                voice: new D1VoiceStore(env.DB)
+            });
+            console.log(`[scout] sweep done: ${JSON.stringify(res)}`);
+            return;
+        }
+
         const cfg = resolveConfig(env as unknown as EnvRecord);
         const watch = resolveWatch(env as unknown as EnvRecord);
         const notifier = buildNotifier(resolveNotifier(env as unknown as EnvRecord));

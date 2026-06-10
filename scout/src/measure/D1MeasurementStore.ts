@@ -142,6 +142,22 @@ export class D1MeasurementStore implements MeasurementStore {
         return row ? toAlertRow(row) : null;
     }
 
+    async getReplyAction(tweetId: string): Promise<ReplyActionRow | null> {
+        const r = await this.db
+            .prepare(`SELECT * FROM reply_action WHERE tweet_id = ?`)
+            .bind(tweetId)
+            .first<{ tweet_id: string; replied: number; replied_at: number | null; reply_tweet_id: string | null; used_draft: number | null; latency_ms: number | null }>();
+        if (!r) return null;
+        return {
+            tweetId: r.tweet_id,
+            replied: !!r.replied,
+            repliedAt: r.replied_at ?? undefined,
+            replyTweetId: r.reply_tweet_id ?? undefined,
+            usedDraft: r.used_draft != null ? !!r.used_draft : undefined,
+            latencyMs: r.latency_ms ?? undefined
+        };
+    }
+
     async funnel(): Promise<FunnelStats> {
         const row = await this.db.prepare(
             `SELECT

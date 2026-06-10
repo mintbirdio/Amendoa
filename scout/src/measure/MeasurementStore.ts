@@ -19,6 +19,8 @@ export interface MeasurementStore {
     recentAlerts(sinceMs: number): Promise<AlertRow[]>;
     /** One alert by tweetId — used to rebuild draft context on a Telegram button tap. */
     getAlert(tweetId: string): Promise<AlertRow | null>;
+    /** Existing reply action for a tweet — so the sweep doesn't clobber a cockpit tap. */
+    getReplyAction(tweetId: string): Promise<ReplyActionRow | null>;
     funnel(): Promise<FunnelStats>;
 }
 
@@ -47,6 +49,9 @@ export class InMemoryMeasurementStore implements MeasurementStore {
     }
     async getAlert(tweetId: string): Promise<AlertRow | null> {
         return this.alerts.get(tweetId) ?? null;
+    }
+    async getReplyAction(tweetId: string): Promise<ReplyActionRow | null> {
+        return this.actions.get(tweetId) ?? null;
     }
     async funnel(): Promise<FunnelStats> {
         const all = [...this.alerts.values()];

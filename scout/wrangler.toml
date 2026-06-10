@@ -23,7 +23,10 @@ compatibility_date = "2026-06-01"
 # Poll cadence. Cloudflare cron minimum granularity is 1 minute; with the X API's
 # 24h read-dedup, frequent polling is nearly free. Tighten/loosen as you like.
 [triggers]
-crons = ["*/1 * * * *"]
+# Frequent poll + a daily learning/outcome sweep (matches replies → alerts,
+# records outcomes + follower trend, feeds the voice profile). The 09:00 UTC
+# pattern is recognised in worker.ts (SWEEP_CRON).
+crons = ["*/1 * * * *", "0 9 * * *"]
 
 [[kv_namespaces]]
 binding = "DEDUP_KV"
