@@ -18,6 +18,8 @@ export interface AlertRow {
     competitionFactor: number;// score component: low-competition
     replyCountAtAlert: number;// how crowded the thread was when alerted
     source: string;           // 'poll' | 'stream' | 'webhook'
+    text?: string;            // tweet text — kept so a reply can be drafted on demand
+    authorName?: string;      // author display name, for the draft prompt
 }
 
 /** Did the human act on an alert? Captured via the Telegram cockpit. */

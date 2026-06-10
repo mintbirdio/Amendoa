@@ -17,6 +17,8 @@ export interface MeasurementStore {
     recordFollowerSnapshot(row: FollowerSnapshotRow): Promise<void>;
     /** Alerts emitted at/after `sinceMs` — used to match your own replies back to alerts. */
     recentAlerts(sinceMs: number): Promise<AlertRow[]>;
+    /** One alert by tweetId — used to rebuild draft context on a Telegram button tap. */
+    getAlert(tweetId: string): Promise<AlertRow | null>;
     funnel(): Promise<FunnelStats>;
 }
 
@@ -42,6 +44,9 @@ export class InMemoryMeasurementStore implements MeasurementStore {
         return [...this.alerts.values()]
             .filter(a => a.alertedAt >= sinceMs)
             .sort((a, b) => b.alertedAt - a.alertedAt);
+    }
+    async getAlert(tweetId: string): Promise<AlertRow | null> {
+        return this.alerts.get(tweetId) ?? null;
     }
     async funnel(): Promise<FunnelStats> {
         const all = [...this.alerts.values()];

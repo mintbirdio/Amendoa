@@ -30,7 +30,9 @@ export function toAlertRow(s: ScoredTweet, at: number, source: string): AlertRow
         timingMultiplier: s.components.timingMultiplier,
         competitionFactor: s.components.competitionFactor,
         replyCountAtAlert: s.tweet.replies,
-        source
+        source,
+        text: s.text,
+        authorName: s.authorName
     };
 }
 

@@ -30,7 +30,9 @@ CREATE TABLE IF NOT EXISTS alert (
   badge TEXT NOT NULL,
   author_value REAL, timing_multiplier REAL, competition_factor REAL,
   reply_count_at_alert INTEGER,
-  source TEXT NOT NULL
+  source TEXT NOT NULL,
+  text TEXT,
+  author_name TEXT
 );
 CREATE TABLE IF NOT EXISTS reply_action (
   tweet_id TEXT PRIMARY KEY,
@@ -58,6 +60,7 @@ interface AlertSqlRow {
     tweet_id: string; author_handle: string; alerted_at: number; posted_at: number;
     score: number; badge: string; author_value: number; timing_multiplier: number;
     competition_factor: number; reply_count_at_alert: number; source: string;
+    text: string | null; author_name: string | null;
 }
 
 function toAlertRow(r: AlertSqlRow): AlertRow {
@@ -72,7 +75,9 @@ function toAlertRow(r: AlertSqlRow): AlertRow {
         timingMultiplier: r.timing_multiplier,
         competitionFactor: r.competition_factor,
         replyCountAtAlert: r.reply_count_at_alert,
-        source: r.source
+        source: r.source,
+        text: r.text ?? undefined,
+        authorName: r.author_name ?? undefined
     };
 }
 
@@ -84,11 +89,12 @@ export class D1MeasurementStore implements MeasurementStore {
             await this.db.prepare(
                 `INSERT OR IGNORE INTO alert
                  (tweet_id, author_handle, alerted_at, posted_at, score, badge,
-                  author_value, timing_multiplier, competition_factor, reply_count_at_alert, source)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+                  author_value, timing_multiplier, competition_factor, reply_count_at_alert, source, text, author_name)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
             ).bind(
                 r.tweetId, r.authorHandle, r.alertedAt, r.postedAt, r.score, r.badge,
-                r.authorValue, r.timingMultiplier, r.competitionFactor, r.replyCountAtAlert, r.source
+                r.authorValue, r.timingMultiplier, r.competitionFactor, r.replyCountAtAlert, r.source,
+                r.text ?? null, r.authorName ?? null
             ).run();
         }
     }
@@ -126,6 +132,14 @@ export class D1MeasurementStore implements MeasurementStore {
             .bind(sinceMs)
             .all<AlertSqlRow>();
         return results.map(toAlertRow);
+    }
+
+    async getAlert(tweetId: string): Promise<AlertRow | null> {
+        const row = await this.db
+            .prepare(`SELECT * FROM alert WHERE tweet_id = ?`)
+            .bind(tweetId)
+            .first<AlertSqlRow>();
+        return row ? toAlertRow(row) : null;
     }
 
     async funnel(): Promise<FunnelStats> {
