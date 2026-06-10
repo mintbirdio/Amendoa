@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { resolveWatch, resolveConfig, resolveNotifier, loadEnv, ConfigError } from '../src/config';
+import {
+    resolveWatch, resolveConfig, resolveNotifier, resolveDataSource, resolveXCredential,
+    loadEnv, ConfigError
+} from '../src/config';
 import { DEFAULT_CONFIG } from '../src/types';
 
 describe('resolveWatch', () => {
@@ -49,30 +52,70 @@ describe('resolveNotifier', () => {
     });
 });
 
+describe('resolveXCredential', () => {
+    it('prefers a static bearer token', () => {
+        expect(resolveXCredential({ X_BEARER_TOKEN: 'tok' })).toEqual({ mode: 'static', bearerToken: 'tok' });
+    });
+    it('falls back to OAuth refresh creds', () => {
+        expect(resolveXCredential({ X_CLIENT_ID: 'cid', X_REFRESH_TOKEN: 'rt' }))
+            .toEqual({ mode: 'oauth', clientId: 'cid', refreshToken: 'rt', clientSecret: undefined });
+    });
+    it('carries a client secret when present', () => {
+        expect(resolveXCredential({ X_CLIENT_ID: 'cid', X_REFRESH_TOKEN: 'rt', X_CLIENT_SECRET: 's' }))
+            .toEqual({ mode: 'oauth', clientId: 'cid', refreshToken: 'rt', clientSecret: 's' });
+    });
+    it('throws when no X credentials are set', () => {
+        expect(() => resolveXCredential({})).toThrow(/X_BEARER_TOKEN|X_CLIENT_ID/);
+    });
+});
+
+describe('resolveDataSource', () => {
+    it('defaults to official and resolves X creds', () => {
+        expect(resolveDataSource({ X_BEARER_TOKEN: 'tok' }))
+            .toEqual({ kind: 'official', credential: { mode: 'static', bearerToken: 'tok' } });
+    });
+    it('uses the scraper when chosen', () => {
+        expect(resolveDataSource({ DATA_SOURCE: 'scraper', SCRAPER_API_KEY: 'k' }))
+            .toEqual({ kind: 'scraper', apiKey: 'k', baseUrl: undefined });
+    });
+    it('throws on an unknown source', () => {
+        expect(() => resolveDataSource({ DATA_SOURCE: 'carrier-pigeon' })).toThrow(ConfigError);
+    });
+    it('official mode requires X credentials', () => {
+        expect(() => resolveDataSource({})).toThrow(ConfigError);
+    });
+});
+
 describe('loadEnv', () => {
     const base = {
-        SCRAPER_API_KEY: 'k',
+        X_BEARER_TOKEN: 'tok',
         TELEGRAM_BOT_TOKEN: 'b',
         TELEGRAM_CHAT_ID: 'c',
         WATCH_LIST_ID: 'L1'
     };
 
-    it('loads a complete env (Telegram)', () => {
+    it('loads a complete official + Telegram env', () => {
         const env = loadEnv(base);
-        expect(env.scraperApiKey).toBe('k');
+        expect(env.dataSource).toEqual({ kind: 'official', credential: { mode: 'static', bearerToken: 'tok' } });
         expect(env.notifier).toEqual({ kind: 'telegram', botToken: 'b', chatId: 'c' });
         expect(env.watch).toEqual({ kind: 'list', listId: 'L1' });
         expect(env.statePath).toBe('.scout-state/alerted.json');
     });
 
-    it('loads a complete env (Pushover)', () => {
-        const env = loadEnv({ SCRAPER_API_KEY: 'k', PUSHOVER_TOKEN: 't', PUSHOVER_USER: 'u', WATCH_LIST_ID: 'L1' });
+    it('loads a scraper + Pushover env', () => {
+        const env = loadEnv({ DATA_SOURCE: 'scraper', SCRAPER_API_KEY: 'k', PUSHOVER_TOKEN: 't', PUSHOVER_USER: 'u', WATCH_LIST_ID: 'L1' });
+        expect(env.dataSource).toEqual({ kind: 'scraper', apiKey: 'k', baseUrl: undefined });
         expect(env.notifier).toEqual({ kind: 'pushover', token: 't', user: 'u' });
     });
 
-    it('throws on missing required secret', () => {
+    it('carries an optional Anthropic key', () => {
+        expect(loadEnv({ ...base, ANTHROPIC_API_KEY: 'sk' }).anthropicApiKey).toBe('sk');
+        expect(loadEnv(base).anthropicApiKey).toBeUndefined();
+    });
+
+    it('throws on missing required config', () => {
         expect(() => loadEnv({ ...base, TELEGRAM_BOT_TOKEN: '' })).toThrow(ConfigError);
-        expect(() => loadEnv({ ...base, SCRAPER_API_KEY: undefined })).toThrow(ConfigError);
+        expect(() => loadEnv({ ...base, X_BEARER_TOKEN: undefined })).toThrow(ConfigError);
     });
 
     it('throws when no watch target', () => {

@@ -5,11 +5,22 @@
  *   npm start           # uses process.env
  */
 
-import { loadEnv, ConfigError } from './config';
+import { loadEnv, ConfigError, type DataSourceConfig } from './config';
 import { ScraperSource } from './sources/ScraperSource';
+import { OfficialXSource } from './sources/OfficialXSource';
+import { buildCredentialProvider } from './sources/Credentials';
+import type { TweetSource } from './sources/TweetSource';
 import { FileAlertStore } from './store/FileAlertStore';
 import { buildNotifier } from './notify/factory';
 import { runScout } from './pipeline';
+
+/** Build the data source from config — official X API by default, scraper if chosen. */
+export function buildSource(ds: DataSourceConfig): TweetSource {
+    if (ds.kind === 'official') {
+        return new OfficialXSource({ credentials: buildCredentialProvider(ds.credential) });
+    }
+    return new ScraperSource({ apiKey: ds.apiKey, baseUrl: ds.baseUrl });
+}
 
 export async function main(): Promise<number> {
     let env;
@@ -23,10 +34,7 @@ export async function main(): Promise<number> {
         throw err;
     }
 
-    const source = new ScraperSource({
-        apiKey: env.scraperApiKey,
-        baseUrl: env.scraperBaseUrl
-    });
+    const source = buildSource(env.dataSource);
     const notifier = buildNotifier(env.notifier);
     const store = await FileAlertStore.load(env.statePath);
 

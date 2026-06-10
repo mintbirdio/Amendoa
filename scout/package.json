@@ -9,6 +9,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "start": "tsx src/main.ts",
+    "x-auth": "tsx scripts/xAuth.ts",
     "register-rule": "tsx scripts/registerRule.ts",
     "dev:worker": "wrangler dev",
     "deploy": "wrangler deploy"

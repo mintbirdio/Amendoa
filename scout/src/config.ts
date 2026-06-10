@@ -1,18 +1,21 @@
 /**
- * Environment-driven configuration. To go live you need a scraper key, ONE
- * notifier (Telegram is free; Pushover is $4.99 once), and one watch target:
+ * Environment-driven configuration.
  *
- *   SCRAPER_API_KEY   — your scraper provider key            (required)
- *   NOTIFIER          — "telegram" | "pushover"              (optional; auto-detected)
+ * Default data source is the OFFICIAL X API (legit, pay-per-use). To go live you
+ * provide X API credentials, ONE notifier, and a watch target:
+ *
+ *   DATA_SOURCE       — "official" (default) | "scraper"
+ *   Official X API auth (one of):
+ *     X_BEARER_TOKEN                       — a ready bearer (e.g. from the OAuth helper), OR
+ *     X_CLIENT_ID + X_REFRESH_TOKEN        — auto-refreshed user-context token (+ X_CLIENT_SECRET if confidential)
+ *   NOTIFIER          — "telegram" | "pushover"  (optional; auto-detected)
  *     Telegram:  TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
  *     Pushover:  PUSHOVER_TOKEN + PUSHOVER_USER
- *   WATCH_LIST_ID     — an X List id to watch (required for pull/cron mode only)
+ *   WATCH_LIST_ID     — an X List id to watch (the id in x.com/i/lists/<ID>)
+ *   ANTHROPIC_API_KEY — for on-demand voice-matched reply drafting (optional until used)
  *
- * Scout's primary path is PUSH (webhook Worker): a twitterapi.io filter rule
- * delivers your watched accounts' new originals in real time, so cost scales
- * with new tweets (~$1/mo) instead of poll frequency. See `worker.ts` and
- * `scripts/registerRule.ts`. The pull path below (`loadEnv` + WATCH_LIST_ID) is
- * the cron fallback that polls a single X List.
+ * Scraper mode (DATA_SOURCE=scraper, SCRAPER_API_KEY) is a cheap, unauthorized
+ * fallback for throwaway personal use only — see sources/ScraperSource.ts.
  */
 
 import type { ScoutConfig, WatchSource } from './types';
@@ -23,13 +26,24 @@ export type NotifierConfig =
     | { kind: 'telegram'; botToken: string; chatId: string }
     | { kind: 'pushover'; token: string; user: string };
 
+/** How to authenticate to the official X API. */
+export type XCredentialConfig =
+    | { mode: 'static'; bearerToken: string }
+    | { mode: 'oauth'; clientId: string; refreshToken: string; clientSecret?: string };
+
+/** Which data source the pipeline reads from. */
+export type DataSourceConfig =
+    | { kind: 'official'; credential: XCredentialConfig }
+    | { kind: 'scraper'; apiKey: string; baseUrl?: string };
+
 export interface ResolvedEnv {
-    scraperApiKey: string;
-    scraperBaseUrl?: string;
+    dataSource: DataSourceConfig;
     notifier: NotifierConfig;
     watch: WatchSource;
     config: ScoutConfig;
     statePath: string;
+    /** Anthropic key for drafting; undefined until the drafting feature is used. */
+    anthropicApiKey?: string;
 }
 
 export class ConfigError extends Error {}
@@ -48,6 +62,38 @@ function req(env: Env, key: string): string {
     const v = env[key];
     if (!v || v.trim() === '') throw new ConfigError(`Missing required env var: ${key}`);
     return v.trim();
+}
+
+/** Resolve official X API credentials: a static bearer, or OAuth refresh creds. */
+export function resolveXCredential(env: Env): XCredentialConfig {
+    const bearer = env.X_BEARER_TOKEN?.trim();
+    if (bearer) return { mode: 'static', bearerToken: bearer };
+
+    const clientId = env.X_CLIENT_ID?.trim();
+    const refreshToken = env.X_REFRESH_TOKEN?.trim();
+    if (clientId && refreshToken) {
+        return {
+            mode: 'oauth',
+            clientId,
+            refreshToken,
+            clientSecret: env.X_CLIENT_SECRET?.trim() || undefined
+        };
+    }
+    throw new ConfigError(
+        'Official X API needs X_BEARER_TOKEN, or X_CLIENT_ID + X_REFRESH_TOKEN (run `npm run x-auth` to mint them)'
+    );
+}
+
+/** Resolve the data source — official X API by default, scraper if chosen. */
+export function resolveDataSource(env: Env): DataSourceConfig {
+    const kind = (env.DATA_SOURCE?.trim().toLowerCase() || 'official');
+    if (kind === 'official') {
+        return { kind: 'official', credential: resolveXCredential(env) };
+    }
+    if (kind === 'scraper') {
+        return { kind: 'scraper', apiKey: req(env, 'SCRAPER_API_KEY'), baseUrl: env.SCRAPER_BASE_URL?.trim() || undefined };
+    }
+    throw new ConfigError(`DATA_SOURCE must be "official" or "scraper", got "${kind}"`);
 }
 
 /** Resolve the watch target from env. Scout watches an X List. */
@@ -86,20 +132,19 @@ export function resolveConfig(env: Env): ScoutConfig {
 
 export function loadEnv(env: Env = process.env): ResolvedEnv {
     return {
-        scraperApiKey: req(env, 'SCRAPER_API_KEY'),
-        scraperBaseUrl: env.SCRAPER_BASE_URL?.trim() || undefined,
+        dataSource: resolveDataSource(env),
         notifier: resolveNotifier(env),
         watch: resolveWatch(env),
         config: resolveConfig(env),
-        statePath: env.STATE_PATH?.trim() || '.scout-state/alerted.json'
+        statePath: env.STATE_PATH?.trim() || '.scout-state/alerted.json',
+        anthropicApiKey: env.ANTHROPIC_API_KEY?.trim() || undefined
     };
 }
 
 /**
- * Config for the webhook Worker (push mode). No watch target or state path —
- * tweets are pushed by a filter rule and dedup lives in KV. `webhookSecret` is
- * the twitterapi.io API key, which the service echoes as `X-API-Key` on every
- * push so the Worker can verify the request is authentic.
+ * Config for the legacy twitterapi.io push Worker (being retired in favour of
+ * official-API polling + the Telegram cockpit). Retained until the Worker is
+ * reworked. `webhookSecret` is the scraper key the service echoes back.
  */
 export interface WorkerConfig {
     webhookSecret: string;
