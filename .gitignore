@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Scout runtime dedup state (persisted via CI cache, not committed)
+.scout-state/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -1,0 +1,30 @@
+name: Amendoa Scout CI
+
+# Scout's runtime is the Cloudflare Worker (cron poll + Telegram cockpit) — see
+# scout/wrangler.toml and scout/README.md. There is nothing to schedule here, so
+# this workflow is just CI: typecheck + the full test suite on every push/PR.
+
+on:
+  push:
+    paths: ['scout/**', '.github/workflows/scout.yml']
+  pull_request:
+    paths: ['scout/**', '.github/workflows/scout.yml']
+  workflow_dispatch:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Scout deps
+        working-directory: scout
+        run: npm ci
+      - name: Typecheck
+        working-directory: scout
+        run: npm run typecheck
+      - name: Test
+        working-directory: scout
+        run: npm test

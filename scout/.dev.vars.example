@@ -1,0 +1,31 @@
+# Scout secrets — LOCAL development template.
+#
+# Copy to `.dev.vars` and fill in. `wrangler dev` loads `.dev.vars` automatically
+# (it's git-ignored). For PRODUCTION, do NOT use this file — set each line below
+# with `wrangler secret put <NAME>` instead (encrypted, never on disk).
+#
+#   cp .dev.vars.example .dev.vars   # then edit
+
+# --- X API (official). Get these from `npm run x-auth` (see README) ---
+X_CLIENT_ID=
+X_REFRESH_TOKEN=
+# X_CLIENT_SECRET=            # only for a "confidential" OAuth app
+# X_BEARER_TOKEN=            # alternative to the CLIENT_ID/REFRESH_TOKEN pair (a ready bearer)
+
+# --- Telegram (free bot) ---
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+TELEGRAM_WEBHOOK_SECRET=     # any random string; must match your setWebhook call
+
+# --- Anthropic (for the Draft button) ---
+ANTHROPIC_API_KEY=
+
+# --- What to watch (the id in x.com/i/lists/<ID>) ---
+WATCH_LIST_ID=
+
+# --- Tuning (optional; defaults live in wrangler.toml [vars]) ---
+# DATA_SOURCE=official
+# MIN_SCORE=70
+# FRESHNESS_MINUTES=60
+# MAX_ALERTS_PER_RUN=10
+# DEDUP_RETENTION_DAYS=7
