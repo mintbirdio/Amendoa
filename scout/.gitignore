@@ -1,0 +1,13 @@
+# deps / build
+node_modules/
+dist/
+.wrangler/
+
+# secrets — NEVER commit these
+.dev.vars
+.env
+.env.*
+!.dev.vars.example
+
+# local dedup state (FileAlertStore)
+.scout-state/
