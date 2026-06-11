@@ -19,6 +19,8 @@
 name = "amendoa-scout"
 main = "src/worker.ts"
 compatibility_date = "2026-06-01"
+# Required: the Anthropic SDK imports a few Node built-ins (node:path, etc.).
+compatibility_flags = ["nodejs_compat"]
 
 # Poll cadence. Cloudflare cron minimum granularity is 1 minute; with the X API's
 # 24h read-dedup, frequent polling is nearly free. Tighten/loosen as you like.
