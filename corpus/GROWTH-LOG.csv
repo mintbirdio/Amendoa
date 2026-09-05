@@ -1,0 +1,5 @@
+date,followers,replies_posted,day_reply_impressions,author_replies_back,notes
+2026-08-31,176,6,3008,2,"day 0: system live; baseline 28d prior = 124 imp total, 0 profile visits"
+2026-09-01,177,3,3500,0,"day 1: @TrungTPhan 2881 imp + @karrisaarinen FIRST + @davidsenra (evening, backfilled 09-03); day-0 replies accrued to 3547 imp"
+2026-09-02,177,1,46,0,"day 2 quiet: 1 reply @hnshah (46 imp, 1 like)"
+2026-09-03,177,6,691,0,"day 3 busiest yet: 6 replies; @emollick x2 (304+261), @AravSrinivas FIRST-window test (78); routines updated to voice v2.1 exemplars"
